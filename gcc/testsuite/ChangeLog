@@ -1,5 +1,11 @@
-2020-01-30  Kito Cheng  <kito.cheng@sifive.com>
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+	Backport from mainline
+        2018-05-08  Bin Cheng  <bin.cheng@linux.alibaba.com>
 
+	PR tree-optimization/90240
+	* gfortran.dg/graphite/pr90240.f: New test.
+
+2020-01-30  Kito Cheng  <kito.cheng@sifive.com>
 	Backport from mainline
 	2020-01-21  Kito Cheng  <kito.cheng@sifive.com>
 
