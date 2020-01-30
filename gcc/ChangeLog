@@ -1,6 +1,14 @@
 2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
 
 	Backport from mainline
+        2020-01-31  Andrew Stubbs  <ams@codesourcery.com>
+
+	* tree-ssa-loop-ivopts.c (get_iv): Use sizetype for zero-step.
+	(find_inv_vars_cb): Likewise.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+
+	Backport from mainline
         2019-09-14  Kewen Lin  <linkw@gcc.gnu.org>
 
 	PR middle-end/80791
