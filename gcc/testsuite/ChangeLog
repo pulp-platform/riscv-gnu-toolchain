@@ -1,5 +1,12 @@
 2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
 	Backport from mainline
+	2020-04-09  Bin Cheng  <bin.cheng@linux.alibaba.com>
+
+	PR tree-optimization/93674
+	* g++.dg/pr93674.C: New test.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+	Backport from mainline
         2019-09-14  Kewen Lin  <linkw@gcc.gnu.org>
 	PR middle-end/80791
 	* gcc.dg/tree-ssa/ivopts-3.c: Adjust for doloop change.
