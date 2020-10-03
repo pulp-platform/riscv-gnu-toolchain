@@ -1,0 +1,136 @@
+# Copyright 2020 ETH Zurich and University of Bologna
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  MAKEFLAGS: "-j64"
+  RISCV_ABI: "ilp32f"
+  # dhrystone test doesn't understand gc, so we spell it out
+  RISCV_ARCH: "rv32imafc"
+
+stages:
+#  - build
+  - test
+
+default:
+  before_script:
+    - pwd
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
+
+# jobs
+
+# no point in pre-building gcc when we built it from scratch for every test anyway
+# gnu-toolchain:
+#   stage: build
+#   script:
+#     - echo "Compiling and Installing"
+#     - make
+#   artifacts:
+#     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+#     paths:
+#       - toolchain/*
+  # cache:
+    # cached per-branch and per-stage
+    #key: ${CI_COMMIT_REF_SLUG}
+    #untracked: true
+    # paths:
+    # - "*"
+
+#find . -name '*.sum' -exec cp {} $(pwd) \;
+#for f in ./*.sum; do mv "$f" "$f.x"; done
+#for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+#for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+gcc:
+  stage: test
+  script:
+    - echo "Running tests"
+    - make report-gcc
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/allowlist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+binutils:
+  stage: test
+  script:
+    - echo "Running tests"
+    - make report-binutils
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/allowlist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+gdb:
+  stage: test
+  script:
+    - echo "Running tests"
+    - make check-gdb
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+# report-newlib target is the same as report-gcc-newlib
+#newlib:
+#  stage: test
+#  script:
+#    - echo "Running tests"
+#    - make report-newlib
+#    - find . -name '*.sum' -exec cp {} $(pwd) \;
+#    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/allowlist "$f.x"; done
+#    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+#    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+#  artifacts:
+#    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+#    paths:
+#      - "*.xml"
+#      - "*.html"
+#      - "*.sum"
+#      - "*.sum.x"
+#    reports:
+#      junit: "*.xml"
