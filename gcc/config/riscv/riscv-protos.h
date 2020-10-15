@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
    the unspec enum in riscv.md, subsequent to UNSPEC_ADDRESS_FIRST.  */
 enum riscv_symbol_type {
   SYMBOL_ABSOLUTE,
+  SYMBOL_TINY_ABSOLUTE,
   SYMBOL_PCREL,
   SYMBOL_GOT_DISP,
   SYMBOL_TLS,
@@ -55,12 +56,37 @@ extern void riscv_split_doubleword_move (rtx, rtx);
 extern const char *riscv_output_move (rtx, rtx);
 extern const char *riscv_output_gpr_save (unsigned);
 extern const char *riscv_output_return ();
+/* PULP */
+extern const char *riscv_explicit_load_store(rtx AddrReg, rtx SrcReg, unsigned int Address, int IsLoad);
+/* */
 #ifdef RTX_CODE
 extern void riscv_expand_int_scc (rtx, enum rtx_code, rtx, rtx);
 extern void riscv_expand_float_scc (rtx, enum rtx_code, rtx, rtx);
 extern void riscv_expand_conditional_branch (rtx, enum rtx_code, rtx, rtx);
 extern void riscv_expand_conditional_move (rtx, rtx, rtx, rtx_code, rtx, rtx);
+/* PULP */
+extern int  riscv_replicated_const_vector (rtx op, int min_val, int max_val);
+extern void riscv_expand_vector_init(rtx target, rtx vals);
+extern int  riscv_valid_norm_round_imm_op(rtx norm_oper, rtx round_oper, int MaxVal);
+extern int  riscv_bit_size_for_clip (HOST_WIDE_INT i);
+extern bool riscv_valid_clip_operands (rtx ux, rtx lx, int sign);
+extern bool riscv_valid_bit_field_imm_operand(rtx x, rtx shift_op, int Set_Mode, int *Size, int *Offset);
+extern int  riscv_valid_bit_insert(rtx op1, rtx op2, rtx op3, int *Len, int *Off);
+extern int  riscv_bitmask (unsigned HOST_WIDE_INT, int *, enum machine_mode);
+extern bool riscv_bitmask_p (unsigned HOST_WIDE_INT);
+extern bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT, int, enum machine_mode);
+extern bool riscv_bottom_bitmask_p (unsigned HOST_WIDE_INT);
+extern bool riscv_valid_permute_operands(rtx op1, rtx op2, rtx sel);
+/* */
 #endif
+/* PULP */
+extern void riscv_hardware_loop (void);
+extern int riscv_epilogue_uses(int regno);
+extern void riscv_expand_vector_init (rtx, rtx);
+extern bool riscv_filter_pulp_operand(rtx, bool);
+extern bool riscv_is_tiny_symbol_p (rtx addr);
+extern void riscv_output_external (FILE *file, tree decl, const char *name);
+/* */
 extern rtx riscv_legitimize_call_address (rtx);
 extern void riscv_set_return_address (rtx, rtx);
 extern bool riscv_expand_block_move (rtx, rtx, rtx);
@@ -81,6 +107,7 @@ void riscv_cpu_cpp_builtins (cpp_reader *);
 extern void riscv_d_target_versions (void);
 
 /* Routines implemented in riscv-builtins.c.  */
+extern tree riscv_fold_builtin (tree, int, tree *, bool);
 extern void riscv_atomic_assign_expand_fenv (tree *, tree *, tree *);
 extern rtx riscv_expand_builtin (tree, rtx, rtx, machine_mode, int);
 extern tree riscv_builtin_decl (unsigned int, bool);

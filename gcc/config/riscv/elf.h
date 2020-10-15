@@ -17,9 +17,20 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+/* TODO: seems suspicious to me why whould be pass -march along too? */
 #define LINK_SPEC "\
 -melf" XLEN_SPEC "lriscv \
 %{mno-relax:--no-relax} \
+%{mchip=*:--mchip=%*} \
+%{mL2=*:--mL2=%*} \
+%{mL1Cl=*:--mL1Cl=%*} \
+%{mL1Fc=*:--mL1Fc=%*} \
+%{mPE=*:--mPE=%*} \
+%{mFC=*:--mFC=%*} \
+%{mWci:--mWci} \
+%{mEci:--mEci} \
+%{mComp:--mComp} \
+%{mDIE=*:--mDIE=%*} \
 %{shared}"
 
 /* Link against Newlib libraries, because the ELF backend assumes Newlib.

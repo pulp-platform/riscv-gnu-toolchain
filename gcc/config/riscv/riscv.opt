@@ -1,6 +1,9 @@
 ; Options for the RISC-V port of the compiler
 ;
 ; Copyright (C) 2011-2019 Free Software Foundation, Inc.
+; PULP family support contributed by Eric Flamand (eflamand@iis.ee.ethz.ch) at ETH-Zurich
+; and Greenwaves Technologies (eric.flamand@greenwaves-technologies.com)
+;
 ;
 ; This file is part of GCC.
 ;
@@ -20,6 +23,110 @@
 
 HeaderInclude
 config/riscv/riscv-opts.h
+
+; Enum
+; Name(Pulp_DP_Format_Type) Type(enum Pulp_DP_Format_Type)
+; Possible types for -mfpdouble=option
+;
+; EnumValue
+; Enum(Pulp_DP_Format_Type) String(double) Value(PULP_DP_FORMAT64)
+;
+; EnumValue
+; Enum(Pulp_DP_Format_Type) String(float) Value(PULP_DP_FORMAT32)
+;
+; mfpdouble=
+; Target RejectNegative Joined Enum(Pulp_DP_Format_Type) Var(Pulp_DP_Format) Init(PULP_DP_FORMAT64)
+; Specify which format for double
+
+Enum
+Name(Pulp_Chip_Config_Type) Type(enum Pulp_Chip_Config_Type)
+
+EnumValue
+Enum(Pulp_Chip_Config_Type) String(cluster) Value(PULP_CHIP_CONFIG_CLUSTER)
+
+EnumValue
+Enum(Pulp_Chip_Config_Type) String(fc) Value(PULP_CHIP_CONFIG_FC)
+
+EnumValue
+Enum(Pulp_Chip_Config_Type) String(all) Value(PULP_CHIP_CONFIG_ALL)
+
+mconf=
+Target RejectNegative Joined Var(Pulp_Chip_Config) Enum(Pulp_Chip_Config_Type) Init(PULP_CHIP_CONFIG_ALL)
+-mconf=CONF, Conf= all, fc, cluster, default is all.
+
+Enum
+Name(Pulp_Chip_Type) Type(enum Pulp_Chip_Type)
+EnumValue
+Enum(Pulp_Chip_Type) String(honey) Value(PULP_CHIP_HONEY)
+
+EnumValue
+Enum(Pulp_Chip_Type) String(pulpino) Value(PULP_CHIP_PULPINO)
+
+;; __GAP8 Start
+EnumValue
+Enum(Pulp_Chip_Type) String(gap8) Value(PULP_CHIP_GAP8)
+;; __GAP8 Stop
+
+mchip=
+Target RejectNegative Joined Var(Pulp_Chip) Enum(Pulp_Chip_Type) Init(PULP_CHIP_NONE)
+-mchip=CHIP     Compile code for pulp chip CHIP
+
+
+Enum
+Name(Pulp_Processor_Type) Type(enum Pulp_Processor_Type)
+
+EnumValue
+Enum(Pulp_Processor_Type) String(pulpv0) Value(PULP_V0)
+
+EnumValue
+Enum(Pulp_Processor_Type) String(pulpv1) Value(PULP_V1)
+
+EnumValue
+Enum(Pulp_Processor_Type) String(pulpv2) Value(PULP_V2)
+
+;; __GAP8 Start
+
+EnumValue
+Enum(Pulp_Processor_Type) String(gap8) Value(PULP_GAP8)
+;; __GAP8 Stop
+
+EnumValue
+Enum(Pulp_Processor_Type) String(pulpv3) Value(PULP_V3)
+
+EnumValue
+Enum(Pulp_Processor_Type) String(pulpslim) Value(PULP_SLIM)
+
+mcpu=
+Target RejectNegative Joined Var(Pulp_Cpu) Enum(Pulp_Processor_Type) Init(PULP_NONE)
+-mcpu=CPU       Compile code for Pulp variant CPU, default is none.
+
+mPE=
+Target RejectNegative Joined UInteger Var(_Pulp_PE) Init(0)
+-mPE=N          Set PE cluster PE count to N.
+
+mFC=
+Target RejectNegative Joined UInteger Var(_Pulp_FC) Init(0)
+-mFC=           0: without FC, 1: with FC.
+
+mL2=
+Target RejectNegative Joined UInteger Var(_Pulp_L2_Size) Init(0)
+-mL2=SIZE       Set L2 size to SIZE, Init to 0.
+
+mL1Cl=
+Target RejectNegative Joined UInteger Var(_Pulp_L1_Cluster_Size) Init(0)
+-mL1Cl=SIZE     Set Cluster L1 size to SIZE, Init to 0.
+
+mL1Fc=
+Target RejectNegative Joined UInteger Var(_Pulp_L1_FC_Size) Init(0)
+-mL1c=SIZE      Set Fabric Controller L1 size to SIZE, Init to 0.
+
+mreg=
+Target RejectNegative Joined UInteger Var(Pulp_Number_Of_Reg) Init(32)
+Use only the mreg first registers of the integer register file, minimum is 16 and default is 32
+
+; mdf
+; Target RejectNegative Mask(MAP_DOUBLE_TO_FLOAT)
+; Internal flag for double mapped on float
 
 mbranch-cost=
 Target RejectNegative Joined UInteger Var(riscv_branch_cost)
@@ -95,6 +202,10 @@ mstrict-align
 Target Report Mask(STRICT_ALIGN) Save
 Do not generate unaligned memory accesses.
 
+mmemcpy
+Target Report Mask(MEMCPY)
+Don't optimize block moves
+
 Enum
 Name(code_model) Type(enum riscv_code_model)
 Known code models (for use with the -mcmodel= option):
@@ -113,6 +224,94 @@ mrelax
 Target Bool Var(riscv_mrelax) Init(1)
 Take advantage of linker relaxations to reduce the number of instructions
 required to materialize symbol addresses.
+
+mnohwloop
+Target Mask(MASK_NOHWLOOP)
+Disable hardware loop support
+
+mnofinduct
+Target Mask(MASK_NOFINDUCT)
+Disable cost function setting to favor induction scheme
+
+msloop
+Target Mask(MASK_SLOOP)
+Use long hw loop setup instead of padding with nop for loop with insn count < 3
+
+mnopostmod
+Target Mask(MASK_NOPOSTMOD)
+Disable pointer post modification support
+
+mnoindregreg
+Target Mask(MASK_NOINDREGREG)
+Disable register offset pointer load/store
+
+mnomac
+Target Mask(MASK_NOMAC)
+Disable full 32x32 into 32 mac support
+
+mnopartmac
+Target Mask(MASK_NOPARTMAC)
+Disable 16x16 into 32 mac support
+
+mnominmax
+Target Mask(MASK_NOMINMAX)
+Disable min/max support
+
+mnoabs
+Target Mask(MASK_NOABS)
+Disable abs support
+
+mnobitop
+Target Mask(MASK_NOBITOP)
+Disable cnt/ff1/fl1 support
+
+; mnosext
+; Target Mask(MASK_NOSEXT)
+; Disable reg to reg sign-extending instructions
+
+mnoslet
+Target Mask(MASK_NOSLET)
+Disable slet/sletu instructions
+
+mnovect
+Target Mask(MASK_NOVECT)
+Disable simd support
+
+mnoclip
+Target Mask(MASK_NOCLIP)
+Disable clip/clipu. -nominmax also disable clip/clipu
+
+mnoaddsubnormround
+Target Mask(MASK_NOADDSUBNORMROUND)
+Disable add/sub with norm and round
+
+mnomulmacnormround
+Target Mask(MASK_NOMULMACNORMROUND)
+Disable 16x16 into 32 mul/mac  with norm and round
+
+mnoshufflepack
+Target Mask(MASK_NOSHUFFLEPACK)
+Disable vector pack and shuffle support
+
+mnativeomp
+Target Mask(MASK_OPEN_NATIVE)
+Enable Native Mapping of OpenMP runtime
+
+mWci
+Target Var(WARN_CINFO)
+Emit warnings when conflicting .Chip_Info.Info sections are found at link time without aborting link.
+
+mEci
+Target Var(ERR_CINFO)
+Emit warnings when conflicting .Chip_Info.Info sections are found at link time and abort link.
+
+mComp
+Target Var(LINK_COMP)
+Link in component mode
+
+mDIE=
+Target RejectNegative Joined UInteger Var(LINK_DUMP_IE_SECT) Init(0)
+Dump content of import and export sections, 0: no dump, 1 dump only, 2 C equiv, 3 dump and C equiv
 
 Mask(64BIT)
 

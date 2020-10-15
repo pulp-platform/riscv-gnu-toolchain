@@ -3,6 +3,9 @@
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target for GNU compiler.
 
+   PULP family support contributed by Eric Flamand (eflamand@iis.ee.ethz.ch) at ETH-Zurich
+   and Greenwaves Technologies (eric.flamand@greenwaves-technologies.com)
+
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
@@ -55,6 +58,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic.h"
 #include "builtins.h"
 #include "predict.h"
+#include "hw-doloop.h"
+#include "cfghooks.h"
 
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
@@ -92,7 +97,13 @@ enum riscv_address_type {
   ADDRESS_REG,
   ADDRESS_LO_SUM,
   ADDRESS_CONST_INT,
-  ADDRESS_SYMBOLIC
+  ADDRESS_SYMBOLIC,
+  ADDRESS_REG_POST_INC,
+  ADDRESS_REG_POST_DEC,
+  ADDRESS_REG_POST_MODIFY,
+  ADDRESS_REG_REG,
+  ADDRESS_TINY_SYMBOL,
+  ADDRESS_REG_TINY_SYMBOL
 };
 
 /* Information about a function's frame layout.  */
@@ -121,6 +132,9 @@ struct GTY(())  riscv_frame_info {
 
   /* The offset of arg_pointer_rtx from the bottom of the frame.  */
   HOST_WIDE_INT arg_pointer_offset;
+
+  /* PULP */
+  unsigned int is_it;
 };
 
 enum riscv_privilege_levels {
@@ -145,6 +159,12 @@ struct GTY(())  machine_function {
 
   /* The current frame information, calculated by riscv_compute_frame_info.  */
   struct riscv_frame_info frame;
+
+  /* Notify doloop pass that at least 1 hw loop has been created */
+  int has_hardware_loops;
+  unsigned int is_interrupt;
+  unsigned int is_pure_interrupt;
+  int contains_call;
 };
 
 /* Information about a single argument.  */
@@ -185,6 +205,8 @@ struct riscv_address_info {
   rtx reg;
   rtx offset;
   enum riscv_symbol_type symbol_type;
+  /* PULP */
+  enum machine_mode mode;
 };
 
 /* One stage in a constant building sequence.  These sequences have
@@ -270,7 +292,9 @@ const enum reg_class riscv_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
-  FRAME_REGS,	FRAME_REGS,
+  FRAME_REGS,	FRAME_REGS,     LC_REGS,        LC_REGS,
+  LE_REGS,      LE_REGS,        LS_REGS,        LS_REGS,
+  VIT_REGS
 };
 
 /* Costs to use when optimizing for rocket.  */
@@ -329,6 +353,8 @@ static const struct attribute_spec riscv_attribute_table[] =
   { "interrupt", 0, 1, false, true, true, false,
     riscv_handle_type_attribute, NULL },
 
+  /* TODO: add PULP attributes */
+  /* { "tiny",           0, 0, true,  false, false, NULL, true  }, */
   /* The last attribute spec is set to be NULL.  */
   { NULL,	0,  0, false, false, false, false, NULL, NULL }
 };
@@ -341,6 +367,9 @@ static const struct riscv_cpu_info riscv_cpu_info_table[] = {
   { "sifive-7-series", sifive_7, &sifive_7_tune_info },
   { "size", generic, &optimize_size_tune_info },
 };
+
+/* PULP */
+static unsigned int MaxArgInReg = MAX_ARGS_IN_REGISTERS;
 
 /* Return the riscv_cpu_info entry for the given name string.  */
 
@@ -538,6 +567,38 @@ riscv_symbol_binds_local_p (const_rtx x)
     return false;
 }
 
+/* PULP */
+bool
+riscv_is_import_symbol_p (rtx addr)
+{
+  tree decl;
+  tree attrs;
+
+  if (GET_CODE(addr) != SYMBOL_REF) return false;
+  decl = SYMBOL_REF_DECL(addr);
+  if (decl) {
+     attrs = TYPE_ATTRIBUTES (TREE_TYPE(decl));
+     // attrs = DECL_ATTRIBUTES (decl);
+     if ((attrs && lookup_attribute ("import", attrs))) return true;
+  }
+  return false;
+}
+
+bool
+riscv_is_tiny_symbol_p (rtx addr)
+{
+  tree decl;
+  tree attrs;
+
+  if (GET_CODE(addr) != SYMBOL_REF) return false;
+  decl = SYMBOL_REF_DECL(addr);
+  if (decl) {
+     attrs = DECL_ATTRIBUTES (decl);
+     if ((attrs && lookup_attribute ("tiny", attrs))) return true;
+  }
+  return false;
+}
+
 /* Return the method that should be used to access SYMBOL_REF or
    LABEL_REF X.  */
 
@@ -547,10 +608,21 @@ riscv_classify_symbol (const_rtx x)
   if (riscv_tls_symbol_p (x))
     return SYMBOL_TLS;
 
-  if (GET_CODE (x) == SYMBOL_REF && flag_pic && !riscv_symbol_binds_local_p (x))
+  if (GET_CODE (x) == LABEL_REF)
+    {
+      if (riscv_is_tiny_symbol_p((rtx) x)) return SYMBOL_TINY_ABSOLUTE;
+      // if (LABEL_REF_NONLOCAL_P (x) && !riscv_is_import_symbol_p((rtx) x))
+      if (LABEL_REF_NONLOCAL_P (x))
+        return SYMBOL_GOT_DISP;
+
+      return riscv_cmodel == CM_MEDLOW ? SYMBOL_ABSOLUTE : SYMBOL_PCREL;
+    }
+
+  if (GET_CODE (x) == SYMBOL_REF && flag_pic && !riscv_symbol_binds_local_p (x) && !riscv_is_import_symbol_p((rtx) x))
     return SYMBOL_GOT_DISP;
 
-  return riscv_cmodel == CM_MEDLOW ? SYMBOL_ABSOLUTE : SYMBOL_PCREL;
+  if (riscv_is_tiny_symbol_p((rtx) x)) return SYMBOL_TINY_ABSOLUTE;
+  else return riscv_cmodel == CM_MEDLOW ? SYMBOL_ABSOLUTE : SYMBOL_PCREL;
 }
 
 /* Classify the base of symbolic expression X.  */
@@ -598,6 +670,8 @@ riscv_symbolic_constant_p (rtx x, enum riscv_symbol_type *symbol_type)
       /* GAS rejects offsets outside the range [-2^31, 2^31-1].  */
       return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
 
+    case SYMBOL_TINY_ABSOLUTE:
+        return true;
     default:
       return false;
     }
@@ -610,6 +684,7 @@ static int riscv_symbol_insns (enum riscv_symbol_type type)
   switch (type)
     {
     case SYMBOL_TLS: return 0; /* Depends on the TLS model.  */
+    case SYMBOL_TINY_ABSOLUTE: return 1; /* the reference itself */
     case SYMBOL_ABSOLUTE: return 2; /* LUI + the reference.  */
     case SYMBOL_PCREL: return 2; /* AUIPC + the reference.  */
     case SYMBOL_TLS_LE: return 3; /* LUI + ADD TP + the reference.  */
@@ -704,7 +779,11 @@ riscv_valid_offset_p (rtx x, machine_mode mode)
 {
   /* Check that X is a signed 12-bit number.  */
   if (!const_arith_operand (x, Pmode))
-    return false;
+    {
+      if (riscv_is_tiny_symbol_p(x))
+	return true;
+      return false;
+    }
 
   /* We may need to split multiword moves, so make sure that every word
      is accessible.  */
@@ -725,7 +804,7 @@ riscv_split_symbol_type (enum riscv_symbol_type symbol_type)
 
   if (!TARGET_EXPLICIT_RELOCS)
     return false;
-
+  /* WHAT DO WE DO THIS TINNY ????????????????? */
   return symbol_type == SYMBOL_ABSOLUTE || symbol_type == SYMBOL_PCREL;
 }
 
@@ -806,8 +885,20 @@ riscv_classify_address (struct riscv_address_info *info, rtx x,
       info->type = ADDRESS_REG;
       info->reg = XEXP (x, 0);
       info->offset = XEXP (x, 1);
-      return (riscv_valid_base_register_p (info->reg, mode, strict_p)
-	      && riscv_valid_offset_p (info->offset, mode));
+
+      if (((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG && (GET_MODE_SIZE (mode) <= UNITS_PER_WORD) ) &&
+          !(TARGET_HARD_FLOAT && (mode == SFmode)) &&
+          ((GET_CODE(info->offset) == REG) || (GET_CODE(info->offset) == SUBREG))) {
+                info->type = ADDRESS_REG_REG;
+                return (riscv_valid_base_register_p (info->reg, mode, strict_p)
+                        && riscv_valid_base_register_p (info->offset, mode, strict_p));
+      } else {
+                if ((GET_CODE(info->offset) == SYMBOL_REF || GET_CODE(info->offset) == LABEL_REF) &&
+                    riscv_is_tiny_symbol_p(info->offset)) info->type = ADDRESS_REG_TINY_SYMBOL;
+
+                return (riscv_valid_base_register_p (info->reg, mode, strict_p)
+                        && riscv_valid_offset_p (info->offset, mode));
+      }
 
     case LO_SUM:
       info->type = ADDRESS_LO_SUM;
@@ -832,6 +923,61 @@ riscv_classify_address (struct riscv_address_info *info, rtx x,
 	 are legitimate if x0 is a valid base register.  */
       info->type = ADDRESS_CONST_INT;
       return SMALL_OPERAND (INTVAL (x));
+
+    case POST_INC:
+      if (GET_MODE_SIZE (mode) > UNITS_PER_WORD || (TARGET_HARD_FLOAT && (mode == SFmode))) return false;
+      info->type = ADDRESS_REG_POST_INC;
+      info->reg = XEXP (x, 0);
+      info->offset = XEXP (x, 1);
+      return (riscv_valid_base_register_p (info->reg, mode, strict_p));
+    case POST_DEC:
+      if (GET_MODE_SIZE (mode) > UNITS_PER_WORD || (TARGET_HARD_FLOAT && (mode == SFmode))) return false;
+      info->type = ADDRESS_REG_POST_DEC;
+      info->reg = XEXP (x, 0);
+      info->offset = XEXP (x, 1);
+      return (riscv_valid_base_register_p (info->reg, mode, strict_p));
+    case POST_MODIFY:
+      if (GET_MODE_SIZE (mode) > UNITS_PER_WORD || (TARGET_HARD_FLOAT && (mode == SFmode))) return false;
+      info->type = ADDRESS_REG_POST_MODIFY;
+      info->reg = XEXP (x, 0);
+      info->mode = mode;
+      if (GET_CODE(XEXP(x, 1)) == PLUS) {
+         if (XEXP (XEXP(x, 1), 0) != info->reg) {
+                /* In some cases the combiner can send a post modify built in a non standard way with the offset
+                   in the left branch while the canonical representation always put it in the right branch */
+                if (info->offset == info->reg) {
+                        /* Swap plus branches */
+                        rtx Tmp = XEXP (XEXP(x, 1), 1);
+                        XEXP (XEXP(x, 1), 1) = XEXP (XEXP(x, 1), 0);
+                        XEXP (XEXP(x, 1), 0) = Tmp;
+
+                } else return false;
+         }
+         info->offset = XEXP (XEXP(x, 1), 1);
+         if (GET_CODE(info->offset) == CONST_INT) {
+                if (!const_arith_operand (info->offset, Pmode)) return FALSE;
+                return (riscv_valid_base_register_p (info->reg, mode, strict_p));
+         } else if ((GET_CODE(info->offset) == REG) || (GET_CODE(info->offset) == SUBREG)) {
+                return (riscv_valid_base_register_p (info->reg, mode, strict_p)
+                       && riscv_valid_base_register_p (info->offset, mode, strict_p));
+         }
+      }
+      return false;
+
+    case LABEL_REF:
+    case SYMBOL_REF:
+        if (riscv_is_tiny_symbol_p(x)) {
+                info->type = ADDRESS_TINY_SYMBOL;
+                return true;
+        }
+        return false;
+   case CONST:
+        if (GET_CODE (XEXP (x, 0)) == PLUS && GET_CODE (XEXP (XEXP (x, 0), 0)) == SYMBOL_REF && CONST_INT_P (XEXP (XEXP (x, 0), 1)) &&
+            riscv_is_tiny_symbol_p(XEXP (XEXP (x, 0), 0))) {
+                info->type = ADDRESS_TINY_SYMBOL;
+                return true;
+        }
+        return false;
 
     default:
       return false;
@@ -906,8 +1052,9 @@ riscv_const_insns (rtx x)
 	return cost < 4 ? cost : 0;
       }
 
-    case CONST_DOUBLE:
     case CONST_VECTOR:
+        if ((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT && riscv_replicated_const_vector (x, -32, 31)) return 1;
+    case CONST_DOUBLE:
       /* We can use x0 to load floating-point zero.  */
       return x == CONST0_RTX (GET_MODE (x)) ? 1 : 0;
 
@@ -1147,6 +1294,10 @@ riscv_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out,
   if (low_out)
     switch (symbol_type)
       {
+      case SYMBOL_TINY_ABSOLUTE:
+	*low_out = gen_rtx_LO_SUM (Pmode, const0_rtx, addr);
+	break;
+
       case SYMBOL_ABSOLUTE:
 	{
 	  rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
@@ -1822,7 +1973,33 @@ riscv_address_cost (rtx addr, machine_mode mode,
 		    addr_space_t as ATTRIBUTE_UNUSED,
 		    bool speed ATTRIBUTE_UNUSED)
 {
-  return riscv_address_insns (addr, mode, false);
+  struct riscv_address_info addr_info;
+  int n = 1;
+
+  /* TODO: crazy ugly hack. Also the return value of riscv_address_insn is
+     ignored. Since this is a cost function we can probably clean this up */
+  if (riscv_address_insns (addr, mode, false)) {
+    if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD) {
+        if (TARGET_MASK_NOFINDUCT) {
+                riscv_classify_address (&addr_info, addr, mode, false);
+                /* Discourage *reg(reg) since this pattern decrease induction attractiviry */
+                if (addr_info.type == ADDRESS_REG_REG ||
+                    (addr_info.type == ADDRESS_REG && addr_info.offset == const0_rtx)) n++;
+                else if (addr_info.type == ADDRESS_REG_POST_INC || addr_info.type == ADDRESS_REG_POST_DEC ||
+                         addr_info.type == ADDRESS_REG_POST_MODIFY) n--;
+
+        } else {
+                /* Even more discouraged *reg(reg) since this pattern decrease induction attractiviry */
+                if (GET_CODE(addr) == PLUS) {
+                        if (GET_CODE (XEXP (addr, 0)) == REG && GET_CODE (XEXP (addr, 1)) == REG) return 16;
+                        else return 12;
+                } else return 0;
+        }
+
+    }
+    return n;
+  }
+  return 0;
 }
 
 /* Return one word of double-word value OP.  HIGH_P is true to select the
@@ -1889,7 +2066,31 @@ riscv_split_doubleword_move (rtx dest, rtx src)
        riscv_emit_move (riscv_subword (dest, true), riscv_subword (src, true));
      }
 }
-
+
+const char * riscv_explicit_load_store(rtx AddrReg, rtx SrcReg, unsigned int Address, int IsLoad)
+{
+        rtx xoperands[4];
+        rtx BaseOp, OffsetOp;
+        unsigned int Base;
+        int Offset;
+
+        Base = (Address>>12)&0x0FFFFF;
+        BaseOp = GEN_INT (trunc_int_for_mode (Base, SImode));
+        Offset = ((int) ((Address & 0x0FFF)<<20))>>20;
+        OffsetOp = GEN_INT (trunc_int_for_mode (Offset, SImode));
+
+        xoperands[0] = AddrReg;
+        xoperands[1] = BaseOp;
+        xoperands[2] = OffsetOp;
+        xoperands[3] = SrcReg;
+        output_asm_insn("lui\t%0,%1", xoperands);
+        if (IsLoad) output_asm_insn("p.elw\t%0,%2(%0)", xoperands);
+        else output_asm_insn("sw\t%3,%2(%0)", xoperands);
+
+        return "";
+}
+
+
 /* Return the appropriate instructions to move SRC into DEST.  Assume
    that SRC is operand 1 and DEST is operand 0.  */
 
@@ -1913,17 +2114,41 @@ riscv_output_move (rtx dest, rtx src)
       if (src_code == REG && FP_REG_P (REGNO (src)))
 	return dbl_p ? "fmv.x.d\t%0,%1" : "fmv.x.s\t%0,%1";
 
-      if (src_code == MEM)
-	switch (GET_MODE_SIZE (mode))
-	  {
-	  case 1: return "lbu\t%0,%1";
-	  case 2: return "lhu\t%0,%1";
-	  case 4: return "lw\t%0,%1";
-	  case 8: return "ld\t%0,%1";
-	  }
+      if (src_code == MEM) {
+        struct riscv_address_info addr;
+        int Prefix=0;
+
+        riscv_classify_address (&addr, XEXP (src, 0), word_mode, true);
+        if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG) {
+                if (addr.type == ADDRESS_REG_REG) Prefix = 1;
+        }
+        if (addr.type == ADDRESS_TINY_SYMBOL /* || addr.type == ADDRESS_REG_TINY_SYMBOL */ ) {
+                switch (GET_MODE_SIZE (mode)) {
+                        case 1: return Prefix?"p.lbu\t%0,%%tiny(%1)(x0)":"lbu\t%0,%%tiny(%1)(x0)";
+                        case 2: return Prefix?"p.lhu\t%0,%%tiny(%1)(x0)":"lhu\t%0,%%tiny(%1)(x0)";
+                        case 4: return Prefix?"p.lw\t%0,%%tiny(%1)(x0)":"lw\t%0,%%tiny(%1)(x0)";
+                        case 8: return "ld\t%0,%1";
+                }
+        } else {
+                switch (GET_MODE_SIZE (mode)) {
+                        case 1: return Prefix?"p.lbu\t%0,%1":"lbu\t%0,%1";
+                        case 2: return Prefix?"p.lhu\t%0,%1":"lhu\t%0,%1";
+                        case 4: return Prefix?"p.lw\t%0,%1":"lw\t%0,%1";
+                        case 8: return "ld\t%0,%1";
+                }
+        }
+      }
 
       if (src_code == CONST_INT)
 	return "li\t%0,%1";
+      else if (src_code == CONST_VECTOR) {
+                if (((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT) && riscv_replicated_const_vector(src, -32, 31)) {
+                        if (GET_MODE(src)==V4QImode) return "pv.add.sci.b\t%0,x0,%W1";
+                        else return "pv.add.sci.h\t%0,x0,%w1";
+                } else {
+                        return "li\t%0,%V1";
+                }
+      }
 
       if (src_code == HIGH)
 	return "lui\t%0,%h1";
@@ -1933,6 +2158,7 @@ riscv_output_move (rtx dest, rtx src)
 	  {
 	  case SYMBOL_GOT_DISP: return "la\t%0,%1";
 	  case SYMBOL_ABSOLUTE: return "lla\t%0,%1";
+          case SYMBOL_TINY_ABSOLUTE: return "lla\t%0,%1";
 	  case SYMBOL_PCREL: return "lla\t%0,%1";
 	  default: gcc_unreachable ();
 	  }
@@ -1956,14 +2182,30 @@ riscv_output_move (rtx dest, rtx src)
 	      return "fcvt.d.w\t%0,x0";
 	    }
 	}
-      if (dest_code == MEM)
-	switch (GET_MODE_SIZE (mode))
-	  {
-	  case 1: return "sb\t%z1,%0";
-	  case 2: return "sh\t%z1,%0";
-	  case 4: return "sw\t%z1,%0";
-	  case 8: return "sd\t%z1,%0";
-	  }
+      if (dest_code == MEM) {
+        struct riscv_address_info addr;
+        int Prefix=0;
+
+        riscv_classify_address (&addr, XEXP (dest, 0), word_mode, true);
+        if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG) {
+                if (addr.type == ADDRESS_REG_REG) Prefix = 1;
+        }
+        if (addr.type == ADDRESS_TINY_SYMBOL /* || addr.type == ADDRESS_REG_TINY_SYMBOL */) {
+                switch (GET_MODE_SIZE (mode)) {
+                        case 1: return Prefix?"p.sb\t%z1,%%tiny(%0)(x0)":"sb\t%z1,%%tiny(%0)(x0)";
+                        case 2: return Prefix?"p.sh\t%z1,%%tiny(%0)(x0)":"sh\t%z1,%%tiny(%0)(x0)";
+                        case 4: return Prefix?"p.sw\t%z1,%%tiny(%0)(x0)":"sw\t%z1,%%tiny(%0)(x0)";
+                        case 8: return "sd\t%z1,%0";
+                }
+        } else {
+                switch (GET_MODE_SIZE (mode)) {
+                        case 1: return Prefix?"p.sb\t%z1,%0":"sb\t%z1,%0";
+                        case 2: return Prefix?"p.sh\t%z1,%0":"sh\t%z1,%0";
+                        case 4: return Prefix?"p.sw\t%z1,%0":"sw\t%z1,%0";
+                        case 8: return "sd\t%z1,%0";
+                }
+        }
+      }
     }
   if (src_code == REG && FP_REG_P (REGNO (src)))
     {
@@ -2167,13 +2409,17 @@ riscv_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
 
       if (*code == EQ || *code == NE)
 	{
-	  /* Convert e.g. OP0 == 2048 into OP0 - 2048 == 0.  */
-	  if (SMALL_OPERAND (-rhs))
-	    {
+	  /* TODO: this can be cleaned up */
+          if ((Pulp_Cpu>=PULP_V2) && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) &&
+              (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15)) {
+
+	  } else if (SMALL_OPERAND (-rhs))
+	  {
+	     /* Convert e.g. OP0 == 2048 into OP0 - 2048 == 0.  */
 	      *op0 = riscv_force_binary (GET_MODE (*op0), PLUS, *op0,
 					 GEN_INT (-rhs));
 	      *op1 = const0_rtx;
-	    }
+	  }
 	}
       else
 	{
@@ -2205,8 +2451,10 @@ riscv_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
   riscv_extend_comparands (*code, op0, op1);
 
   *op0 = force_reg (word_mode, *op0);
-  if (*op1 != const0_rtx)
-    *op1 = force_reg (word_mode, *op1);
+  if (*op1 != const0_rtx) {
+     if (!((Pulp_Cpu>=PULP_V2) && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) && (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15))) 
+    	*op1 = force_reg (word_mode, *op1);
+  }
 }
 
 /* Like riscv_emit_int_compare, but for floating-point comparisons.  */
@@ -2345,6 +2593,366 @@ riscv_expand_conditional_move (rtx dest, rtx cons, rtx alt, rtx_code code,
   emit_insn (gen_rtx_SET (dest, gen_rtx_IF_THEN_ELSE (GET_MODE (dest), cond,
 						      cons, alt)));
 }
+
+/* Helper for vector support, pulp v2 */
+
+void riscv_expand_vector_init(rtx target, rtx vals)
+
+{
+	enum machine_mode mode = GET_MODE (target);
+	enum machine_mode inner_mode = GET_MODE_INNER (mode);
+	int n_elts = GET_MODE_NUNITS (mode);
+	int n_var = 0;
+	bool all_same = true;
+	bool first = true;
+	rtx x;
+	int i;
+
+	for (i = 0; i < n_elts; ++i) {
+		x = XVECEXP (vals, 0, i);
+		if (!CONSTANT_P (x)) ++n_var;
+		if (i > 0 && !rtx_equal_p (x, XVECEXP (vals, 0, 0))) all_same = false;
+	}
+	if (all_same) {
+		rtx y;
+		if (inner_mode != GET_MODE(XVECEXP (vals, 0, 0)))
+			// Should not happen but for vector shift with a replicated scalar it happens
+			y = simplify_gen_subreg (inner_mode,  XVECEXP (vals, 0, 0), GET_MODE(XVECEXP (vals, 0, 0)), 0);
+		else y =  XVECEXP (vals, 0, 0);
+		x = copy_to_mode_reg (inner_mode, y); // XVECEXP (vals, 0, 0));
+		emit_insn (gen_rtx_SET (target, gen_rtx_VEC_DUPLICATE (mode, x)));
+		return;
+	}
+	// i = GET_MODE_NUNITS (mode);
+	// while (i-- > 0) {
+	/* Since we are in little endian, start from the lsp part. If the first item can be safely moved to a register
+	   with all slices except its one known to be 0 do it otherwise move 0 to the target reg and then insert.
+	   All slices are zeroed therefore we can skip them when their actual value is zero.
+	   We could also extract all slices with an imm value an forge a 32bit constant to be moved to target reg, we
+	   then skip all immediates since they are already in
+	*/
+	for (i = 0; i < n_elts; ++i) {
+		x = copy_to_mode_reg(inner_mode, XVECEXP (vals, 0, i));
+		switch (mode) {
+			case V2HImode:
+				if (first) emit_insn(gen_vec_set_firstv2hi(target, x, GEN_INT(i)));
+				else if (XVECEXP (vals, 0, i) != const0_rtx) emit_insn(gen_vec_setv2hi(target, x, GEN_INT(i)));
+				break;
+			case V4QImode:
+				if (first) emit_insn(gen_vec_set_firstv4qi(target, x, GEN_INT(i)));
+				else if (XVECEXP (vals, 0, i) != const0_rtx) emit_insn(gen_vec_setv4qi(target, x, GEN_INT(i)));
+				break;
+			default:
+				abort();
+		}
+		first = false;
+	}
+}
+
+int riscv_replicated_const_vector (rtx op, int min_val, int max_val)
+
+{
+        if (GET_CODE (op) == CONST_VECTOR) {
+                enum machine_mode mode = GET_MODE(op);
+                enum machine_mode inner_mode = GET_MODE_INNER (mode);
+                HOST_WIDE_INT ref=0;
+                int ref1;
+                HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
+                int i;
+
+                for (i = 0; i < GET_MODE_NUNITS (mode); i++) {
+                        HOST_WIDE_INT cval = INTVAL (CONST_VECTOR_ELT (op, i)) & mask;
+                        if (i==0) ref = cval;
+                        else if (ref != cval) return 0;
+                }
+                if (GET_MODE_NUNITS (mode) == 2) ref1 = ((int)ref<<16)>>16; else ref1 = ((int)ref<<24)>>24;
+                return (((int) ref1 >= min_val) && ((int) ref1 <= max_val));
+        }
+        return 0;
+}
+
+rtx
+riscv_to_int_mode (rtx x)
+{
+  enum machine_mode mode = GET_MODE (x);
+  return VOIDmode == mode ? x : simplify_gen_subreg (int_mode_for_mode (mode), x, mode, 0);
+}
+
+/* Various helper to validate operands for pulp v2 */
+
+int riscv_bit_size_for_clip (HOST_WIDE_INT i)
+
+{
+	int rv;
+
+	for (rv = 0; rv < 31; rv ++)
+		if (((HOST_WIDE_INT) 1 << rv) > i) return rv + 1;
+	gcc_unreachable ();
+}
+
+bool riscv_valid_clip_operands (rtx ux, rtx lx, int sign)
+
+{
+	HOST_WIDE_INT u = INTVAL (ux);
+	HOST_WIDE_INT l = INTVAL (lx);
+	int i;
+
+
+	if (sign) {
+		for (i = 0; i < 30; i ++)
+			if ((u == ((HOST_WIDE_INT) 1 << i) - 1) && (l == - ((HOST_WIDE_INT) 1 << i))) return true;
+	} else {
+		if (l != 0) return false;
+		for (i = 0; i < 30; i ++)
+			if ((u == ((HOST_WIDE_INT) 1 << i) - 1)) return true;
+	}
+	return false;
+}
+
+int riscv_valid_norm_round_imm_op(rtx norm_oper, rtx round_oper, int MaxVal)
+
+{
+
+	if (GET_CODE(norm_oper) == CONST_INT) {
+		HOST_WIDE_INT val = INTVAL (norm_oper);
+		HOST_WIDE_INT val1;
+		if ((int) val < 0 || (int) val > MaxVal) return 0;
+		if (!round_oper) return 1;
+		if (GET_CODE(round_oper) != CONST_INT) return 0;
+		val1 = INTVAL (round_oper);
+		if ((1 << ((int) val - 1)) ==  (int) val1) return 1;
+	}
+	return 0;
+}
+
+bool riscv_valid_bit_field_imm_operand(rtx x, rtx shift_op, int Set_Mode, int *Size, int *Offset)
+
+{
+	int V, O=0, S=0;
+	int i, j;
+
+	if (GET_CODE(x) != CONST_INT) return false;
+	if (shift_op && GET_CODE(shift_op) != CONST_INT) return false;
+	V = (int) (INTVAL (x));
+
+	if (Set_Mode) {
+		for (i=0; i<32; i++) {
+			if ((1<<i) & V) {
+				for (j=i; j<32; j++) {
+					if (!((1<<j) & V)) break;
+					S++;
+				}
+				for (;j<32; j++) if (((1<<j) & V)) return false;
+				if (shift_op && ((int) INTVAL(shift_op) != O)) return false;
+				if (Size) *Size=S;
+				if (Offset) *Offset=O;
+				return true;
+			}
+			O++;
+		}
+	} else {
+		for (i=0; i<32; i++) {
+			if (!((1<<i) & V)) {
+				for (j=i; j<32; j++) {
+					if ((1<<j) & V) break;
+					S++;
+				}
+				for (;j<32; j++) if (!((1<<j) & V)) return false;
+				if (Size) *Size=S;
+				if (Offset) *Offset=O;
+				return true;
+			}
+			O++;
+		}
+	}
+	return false;
+}
+
+int riscv_valid_bit_insert(rtx op1, rtx op2, rtx op3, int *Len, int *Off)
+
+{
+	unsigned int Imm1, Imm2, Imm3;
+	int i;
+	unsigned int I=0;
+	unsigned int L=0;
+	unsigned int H=0;
+
+	if (GET_CODE(op1) != CONST_INT || GET_CODE(op2) != CONST_INT || (op3 && (GET_CODE(op3) != CONST_INT))) return 0;
+	Imm2 = (unsigned int) (INTVAL (op2));
+	Imm1 = (unsigned int) (INTVAL (op1));
+	if (op3) Imm3 = (unsigned int) (INTVAL (op3)); else Imm3 = ~Imm1;
+	// fprintf(stderr, "Binsert candidate: I1: %X, I2: %d, I3: %X\n", Imm1, Imm2, Imm3);
+	for (i=0; i<32; I++, i++) if ((Imm3 & (1<<i))!=0) break;
+	for (;i<32; L++, i++) if ((Imm3 & (1<<i))==0) break;
+	for (;i<32; H++, i++) if ((Imm3 & (1<<i))!=0) {
+		// fprintf(stderr, "Wrong header\n");
+		return 0;
+	}
+	if (op3 == NULL && H!=0) return 0;
+	if ((unsigned int) (I) != Imm2) {
+		// fprintf(stderr, "I: %d != Imm2: %d\n", I, Imm2);
+		return 0;
+	}
+	if (Imm3 != (~Imm1)) {
+		// fprintf(stderr, "Imm3: %X != ~Imm1: %d\n", Imm3, (~Imm1));
+		return 0;
+	}
+	if (Len) *Len = L;
+	if (Off) *Off = I;
+	// fprintf(stderr, "Binsert candidate OK: Len: %d, Offset: %d, H: %d\n", L, I, H);
+	return 1;
+}
+int riscv_bitmask (unsigned HOST_WIDE_INT x, int *len, enum machine_mode mode)
+{
+	int top, bottom;
+
+	top = floor_log2 (x);
+	if (top == HOST_BITS_PER_WIDE_INT - 1) x = -x;
+	else x = ((unsigned HOST_WIDE_INT) 1 << (top + 1)) - x;
+
+	bottom = exact_log2 (x);
+	if (mode == VOIDmode || bottom == -1) return bottom;
+
+	if (mode == SImode && top > 31) {
+		if (top == 63) top = 31;
+		else gcc_unreachable ();
+	}
+	*len = top - bottom + 1;
+	return bottom;
+}
+
+bool riscv_bitmask_p (unsigned HOST_WIDE_INT x)
+
+{
+	return (!TARGET_MASK_NOBITOP) && riscv_bitmask (x, NULL, VOIDmode) != -1;
+}
+
+bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT x, int pos, enum machine_mode mode)
+
+{
+	int len, position;
+	if (!(!TARGET_MASK_NOBITOP)) return 0;
+	position = riscv_bitmask (x, &len, mode);
+	return position == 0 && len == pos;
+}
+
+bool riscv_bottom_bitmask_p (unsigned HOST_WIDE_INT x)
+
+{
+	return (!TARGET_MASK_NOBITOP) && riscv_bitmask (x, NULL, VOIDmode) == 0;
+}
+
+bool riscv_valid_permute_operands(rtx op1, rtx op2, rtx sel)
+
+{
+	if ((GET_CODE(sel) == CONST_INT || GET_CODE(sel) == CONST_VECTOR)) {
+		return (rtx_equal_p(op1, op2));
+	} else return true;
+}
+
+/* TARGET_.... functions */
+
+/* Implements TARGET_VECTOR_MODE_SUPPORTED_P */
+
+static bool riscv_vector_mode_supported_p (enum machine_mode mode)
+{
+  switch (mode)
+    {
+    case V2HImode:
+    case V4QImode:
+    case V2QImode:
+      return true;
+    default:
+      return false;
+    }
+}
+
+/* Implements  TARGET_VECTORIZE_PREFERRED_SIMD_MODE */
+
+static enum machine_mode riscv_preferred_simd_mode (enum machine_mode mode)
+{
+  switch (mode)
+    {
+    case HImode:
+      return V2HImode;
+    case QImode:
+      return V4QImode;
+    default:
+      return word_mode;
+    }
+}
+
+/* Implements TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT */
+
+static bool
+riscv_builtin_support_vector_misalignment (enum machine_mode mode ATTRIBUTE_UNUSED,
+                                          const_tree type ATTRIBUTE_UNUSED,
+                                          int misalignment,
+                                          bool is_packed)
+{
+        HOST_WIDE_INT align = TYPE_ALIGN_UNIT (type);
+
+        if (is_packed) return align == 1;
+
+        /* If the misalignment is unknown, we should be able to handle the access
+         so long as it is not to a member of a packed data structure.  */
+        if (misalignment == -1) return true;
+
+        /* Return true if the misalignment is a multiple of the natural alignment
+         of the vector's element type.  This is probably always going to be
+         true in practice, since we've already established that this isn't a
+         packed access.  */
+        return ((misalignment % align) == 0);
+}
+
+/* Implements TARGET_VECTORIZE_VECTOR_ALIGNMENT_REACHABLE */
+
+static bool
+riscv_vector_alignment_reachable (const_tree type ATTRIBUTE_UNUSED, bool is_packed)
+{
+    return !is_packed;
+}
+
+/* Implements TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST */
+
+static int
+riscv_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
+                                 tree vectype,
+                                 int misalign ATTRIBUTE_UNUSED)
+{
+  unsigned elements;
+
+  switch (type_of_cost)
+    {
+      case scalar_stmt:
+      case scalar_load:
+      case scalar_store:
+      case vector_stmt:
+      case vector_load:
+      case vector_store:
+      case vec_to_scalar:
+      case scalar_to_vec:
+      case cond_branch_not_taken:
+      case vec_perm:
+      case vec_promote_demote:
+        return 1;
+
+      case unaligned_load:
+      case unaligned_store:
+        return 1;
+
+      case cond_branch_taken:
+        return 1;
+
+      case vec_construct:
+        elements = TYPE_VECTOR_SUBPARTS (vectype);
+        return elements / 2 + 1;
+
+      default:
+        gcc_unreachable ();
+    }
+}
+
 
 /* Implement TARGET_FUNCTION_ARG_BOUNDARY.  Every parameter gets at
    least PARM_BOUNDARY bits of alignment, but will be given anything up
@@ -3227,6 +3835,47 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 	fputs (".aq", file);
       break;
 
+    case 'B':
+      fprintf (file, "%d", riscv_bit_size_for_clip (INTVAL (op)));
+      break;
+
+    case 'W':
+      {
+         enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+         HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
+         HOST_WIDE_INT val = INTVAL (CONST_VECTOR_ELT (op, 0)) & mask;
+         if (val_signbit_known_set_p(inner_mode, val))
+                 val |= ~GET_MODE_MASK (inner_mode);
+         fprintf (file, "%d", (int) val);
+      }
+      break;
+
+    case 'w':
+      {
+         enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+         HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
+         HOST_WIDE_INT val = INTVAL (CONST_VECTOR_ELT (op, 0)) & mask;
+         if (val_signbit_known_set_p(inner_mode, val)) // ????
+                 val |= ~GET_MODE_MASK (inner_mode);
+         fprintf (file, "%d", (int) val);
+      }
+      break;
+
+    case 'V':
+      {
+        enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+        HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
+        int i;
+        int Val=0;
+        int Off = (GET_MODE_NUNITS (GET_MODE(op)) == 2)?16:8;
+        for (i = 0; i < GET_MODE_NUNITS (GET_MODE(op)); i++) {
+                HOST_WIDE_INT cval = INTVAL (CONST_VECTOR_ELT (op, i)) & mask;
+                Val = Val | ((int) cval << Off*i);
+        }
+        fprintf (file, "%d", (int) Val);
+        break;
+      }
+
     case 'F':
       if (riscv_memmodel_needs_release_fence ((enum memmodel) INTVAL (op)))
 	fputs ("fence iorw,ow; ", file);
@@ -3265,6 +3914,17 @@ riscv_print_operand (FILE *file, rtx op, int letter)
     }
 }
 
+static int ModeSize(enum machine_mode mode)
+
+{
+   switch (mode) {
+      case QImode: return 1;
+      case HImode: return 2;
+      case SImode: return 4;
+      default: return 0;
+   }
+}
+
 /* Implement TARGET_PRINT_OPERAND_ADDRESS.  */
 
 static void
@@ -3275,6 +3935,14 @@ riscv_print_operand_address (FILE *file, machine_mode mode ATTRIBUTE_UNUSED, rtx
   if (riscv_classify_address (&addr, x, word_mode, true))
     switch (addr.type)
       {
+      case ADDRESS_REG_TINY_SYMBOL:
+        fprintf (file, "%%tiny(");
+        riscv_print_operand (file, addr.offset, 0);
+        fprintf (file, ")");
+        fprintf (file, "(%s)", reg_names[REGNO (addr.reg)]);
+        return;
+
+      case ADDRESS_REG_REG:
       case ADDRESS_REG:
 	riscv_print_operand (file, addr.offset, 0);
 	fprintf (file, "(%s)", reg_names[REGNO (addr.reg)]);
@@ -3293,6 +3961,25 @@ riscv_print_operand_address (FILE *file, machine_mode mode ATTRIBUTE_UNUSED, rtx
       case ADDRESS_SYMBOLIC:
 	output_addr_const (file, riscv_strip_unspec_address (x));
 	return;
+
+      case ADDRESS_TINY_SYMBOL:
+        output_addr_const (file, riscv_strip_unspec_address (x));
+        return;
+
+      case ADDRESS_REG_POST_INC:
+        // riscv_print_operand (file, addr.offset, 0);
+        fprintf (file, "%d(%s!)", ModeSize(addr.mode), reg_names[REGNO (addr.reg)]);
+        return;
+
+      case ADDRESS_REG_POST_DEC:
+        // riscv_print_operand (file, addr.offset, 0);
+        fprintf (file, "%d(%s!)", ModeSize(addr.mode), reg_names[REGNO (addr.reg)]);
+        return;
+
+      case ADDRESS_REG_POST_MODIFY:
+        riscv_print_operand (file, addr.offset, 0);
+        fprintf (file, "(%s!)", reg_names[REGNO (addr.reg)]);
+        return;
       }
   gcc_unreachable ();
 }
@@ -3387,14 +4074,39 @@ riscv_frame_set (rtx mem, rtx reg)
   return set;
 }
 
+static int scan_reg_definitions(int regno)
+
+{
+        struct df_reg_info *reg_info = DF_REG_DEF_GET(regno);
+        df_ref chain;
+        int cnt = 0;
+
+        if (!reg_info || reg_info->n_refs==0) return 0;
+
+        chain = reg_info->reg_chain;
+
+        while (chain) {
+                if (chain->base.cl == DF_REF_ARTIFICIAL) {
+                } else if (chain->base.cl == DF_REF_REGULAR) {
+                        cnt++;
+                } else { // DF_REF_BASE
+                }
+                chain = chain->base.next_reg;
+        }
+        return cnt;
+
+}
+
 /* Return true if the current function must save register REGNO.  */
 
 static bool
-riscv_save_reg_p (unsigned int regno)
+riscv_save_reg_p (unsigned int regno, unsigned int is_it)
 {
   bool call_saved = !global_regs[regno] && !call_used_regs[regno];
   bool might_clobber = crtl->saves_all_registers
 		       || df_regs_ever_live_p (regno);
+  bool it_rel = is_it && df_regs_ever_live_p(regno) && scan_reg_definitions(regno);
+
 
   if (call_saved && might_clobber)
     return true;
@@ -3403,6 +4115,10 @@ riscv_save_reg_p (unsigned int regno)
     return true;
 
   if (regno == RETURN_ADDR_REGNUM && crtl->calls_eh_return)
+    return true;
+
+  /* TODO: super hacky again. Rewrite to use facility below */
+  if (it_rel)
     return true;
 
   /* If this is an interrupt handler, then must save extra registers.  */
@@ -3435,6 +4151,7 @@ static bool
 riscv_use_save_libcall (const struct riscv_frame_info *frame)
 {
   if (!TARGET_SAVE_RESTORE || crtl->calls_eh_return || frame_pointer_needed
+      || frame->is_it
       || cfun->machine->interrupt_handler_p)
     return false;
 
@@ -3516,12 +4233,13 @@ riscv_compute_frame_info (void)
     }
 
   memset (frame, 0, sizeof (*frame));
+  frame->is_it = cfun->machine->is_interrupt;
 
   if (!cfun->machine->naked_p)
     {
       /* Find out which GPRs we need to save.  */
       for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; regno++)
-	if (riscv_save_reg_p (regno)
+	if (riscv_save_reg_p (regno, frame->is_it
 	    || (interrupt_save_t1 && (regno == T1_REGNUM)))
 	  frame->mask |= 1 << (regno - GP_REG_FIRST), num_x_saved++;
 
@@ -3535,7 +4253,7 @@ riscv_compute_frame_info (void)
 	 the same space as its companion in riscv_for_each_saved_reg.  */
       if (TARGET_HARD_FLOAT)
 	for (regno = FP_REG_FIRST; regno <= FP_REG_LAST; regno++)
-	  if (riscv_save_reg_p (regno))
+	  if (riscv_save_reg_p (regno, frame->is_it))
 	    frame->fmask |= 1 << (regno - FP_REG_FIRST), num_f_saved++;
     }
 
@@ -3562,8 +4280,9 @@ riscv_compute_frame_info (void)
 	     allocate 12 bytes for callee-saved register.  */
 	  if (TARGET_RVE)
 	    x_save_size = 3 * UNITS_PER_WORD;
-
-	  frame->save_libcall_adjustment = x_save_size;
+	  
+	  if (!frame->is_it) 
+	    frame->save_libcall_adjustment = x_save_size;
 	}
 
       offset += x_save_size;
@@ -3956,6 +4675,18 @@ riscv_adjust_libcall_cfi_epilogue ()
   return dwarf;
 }
 
+
+static bool riscv_current_func_contains_call()
+{
+	rtx_insn *first = entry_of_function();
+	rtx_insn *insn;
+
+	for (insn = next_active_insn (first); insn; insn = next_active_insn (insn)) {
+		if (CALL_P (insn)) return true;
+	}
+	return false;
+}
+
 /* Expand an "epilogue", "sibcall_epilogue", or "eh_return_internal" pattern;
    style says which.  */
 
@@ -3979,6 +4710,17 @@ riscv_expand_epilogue (int style)
   /* We need to add memory barrier to prevent read from deallocated stack.  */
   bool need_barrier_p = (get_frame_size ()
 			 + cfun->machine->frame.arg_pointer_offset) != 0;
+
+  /* TODO: this probably needs work */
+  if (cfun->machine->interrupt_handler_p) {
+        if (cfun->machine->has_hardware_loops) {
+                error ("interrupt function contains hardware loop: %s", current_function_name());
+        }
+        cfun->machine->contains_call = (!TARGET_MASK_NOHWLOOP && riscv_current_func_contains_call());
+        if (cfun->machine->contains_call) {
+                error ("interrupt function contains function calls: %s", current_function_name());
+        }
+  }
 
   if (cfun->machine->naked_p)
     {
@@ -4292,6 +5034,7 @@ riscv_hard_regno_nregs (unsigned int regno, machine_mode mode)
 static bool
 riscv_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
+  unsigned int size = GET_MODE_SIZE (mode);
   unsigned int nregs = riscv_hard_regno_nregs (regno, mode);
 
   if (GP_REG_P (regno))
@@ -4315,6 +5058,13 @@ riscv_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 	      && GET_MODE_UNIT_SIZE (mode) > UNITS_PER_FP_ARG))
 	return false;
     }
+  else if (HWLOOP_REG_P (regno))
+    {
+      if (size <= UNITS_PER_WORD)
+        return true;
+    }
+  else if (VIT_REG_P (regno))
+    return true;
   else
     return false;
 
@@ -4526,6 +5276,7 @@ riscv_option_override (void)
      -m[no-]strict-align is left unspecified, heed -mtune's advice.  */
   riscv_slow_unaligned_access_p = (cpu->tune_info->slow_unaligned_access
 				   || TARGET_STRICT_ALIGN);
+  /* TODO: PULP has a hack here where we say accesses are always fast */
   if ((target_flags_explicit & MASK_STRICT_ALIGN) == 0
       && cpu->tune_info->slow_unaligned_access)
     target_flags |= MASK_STRICT_ALIGN;
@@ -4615,6 +5366,21 @@ riscv_conditional_register_usage (void)
       for (int regno = FP_REG_FIRST; regno <= FP_REG_LAST; regno++)
 	call_used_regs[regno] = 1;
     }
+
+  /* PULP */
+  /* TODO: remove this? */
+  if (Pulp_Number_Of_Reg != 32) {
+      if (Pulp_Number_Of_Reg<16) {
+        error ("Number of Register cannot be smaller than `%d'", Pulp_Number_Of_Reg);
+      } else if (Pulp_Number_Of_Reg < 24) {
+        MaxArgInReg = 6;
+      } else MaxArgInReg = MAX_ARGS_IN_REGISTERS;
+      for (int regno = GP_REG_FIRST+Pulp_Number_Of_Reg; regno <= GP_REG_LAST; regno++)
+        fixed_regs[regno] = call_used_regs[regno] = 1;
+  } else {
+        MaxArgInReg = MAX_ARGS_IN_REGISTERS;
+  }
+
 }
 
 /* Return a register priority for hard reg REGNO.  */
@@ -4956,6 +5722,833 @@ riscv_hard_regno_rename_ok (unsigned from_regno ATTRIBUTE_UNUSED,
   return !cfun->machine->interrupt_handler_p || df_regs_ever_live_p (to_regno);
 }
 
+
+
+bool riscv_filter_pulp_operand(rtx x, bool ignore)
+
+{
+	if (ignore) return false;
+	return ( ((GET_CODE(x) == MEM) &&
+  		  (GET_CODE(XEXP(x, 0)) == POST_INC ||
+		   GET_CODE(XEXP(x, 0)) == POST_DEC ||
+		   GET_CODE(XEXP(x, 0)) == POST_MODIFY ||
+   			(GET_CODE(XEXP(x, 0)) == PLUS &&
+				(GET_CODE(XEXP(XEXP(x, 0), 1)) == REG || GET_CODE(XEXP(XEXP(x, 0), 1)) == SUBREG)
+			)
+  		  )
+	         )
+	       );
+}
+
+
+/* Hardware Loops */
+
+#define MAX_LOOP_DEPTH 2
+
+/* Maximum size of a loop.  */
+#define MAX_LOOP_LENGTH 4096
+#define MIN_LOOP_LENGTH 2
+
+/* Maximum distance of the LSETUP instruction from the loop start.  */
+#define MAX_LSETUP_DISTANCE 30
+
+static const char *
+riscv_invalid_within_doloop (const rtx_insn *insn)
+{
+  if (CALL_P (insn)) {
+    cfun->machine->contains_call = 1;
+    return "Function call in the loop.";
+  }
+
+  if (JUMP_P (insn) && INSN_CODE (insn) == CODE_FOR_return)
+    return "Return from a call instruction in the loop.";
+
+  return NULL;
+}
+
+static bool
+riscv_can_use_doloop_p (const widest_int &, const widest_int &,
+                      unsigned int loop_depth, bool entered_at_top)
+{
+        if ((Pulp_Cpu<PULP_V1) || TARGET_MASK_NOHWLOOP) return 0;
+
+// printf("Loop entered at top: %d\n", entered_at_top);
+        return (entered_at_top && (loop_depth <= 2));
+}
+
+
+void riscv_hardware_loop (void)
+{
+  cfun->machine->has_hardware_loops++;
+}
+
+static int length_for_loop (rtx_insn *insn)
+{
+  int length = 0;
+
+  if (NONDEBUG_INSN_P (insn)) length += (get_attr_length (insn))/4;
+  return length;
+}
+
+/* Optimize LOOP.  */
+
+static bool
+hwloop_optimize (hwloop_info loop)
+{
+  basic_block bb;
+  rtx_insn *insn, *last_insn, *insn_insert;
+  rtx start_label, end_label;
+  rtx iter_reg;
+  rtx lc_reg, ls_reg, le_reg;
+  bool clobber0, clobber1;
+  rtx_insn *seq;
+  rtx seq_end;
+  int length;
+  int loop_index;
+  bool init_iter_is_constant = false;
+  int init_iter_value = 0;
+  rtx_insn *single_def_iter = NULL;
+  bool single_def_iter_removable = false;
+  bool Padding = false;
+  bool UnsafeHead = false;
+
+  if (dump_file) {
+	edge e;
+	int i;
+
+	fprintf(dump_file, "Target specific processing of loop %d\n", loop->loop_no);
+	fprintf(dump_file, "head         : bb%d\n", loop->head->index);
+	fprintf(dump_file, "incoming_src : bb%d\n", loop->incoming_src?loop->incoming_src->index:-5555);
+	fprintf(dump_file, "incoming_dest: bb%d\n", loop->incoming_dest?loop->incoming_dest->index:-5555);
+	for (i = 0; vec_safe_iterate(loop->incoming, i, &e); i++) 
+		fprintf(dump_file, " Incoming: src= bb%4d, dest= bb%4d, Edge is: %s\n", e->src->index, e->dest->index, (e->flags & EDGE_FALLTHRU)?"Fall Through":"Branch");
+	
+  }
+  if (loop->depth > MAX_LOOP_DEPTH)
+    {
+      if (dump_file)
+	fprintf (dump_file, ";; loop %d too deep\n", loop->loop_no);
+      return false;
+    }
+
+  /* Get the loop iteration register.  */
+  iter_reg = loop->iter_reg;
+
+  gcc_assert (REG_P (iter_reg));
+
+  if (loop->incoming_src) {
+      if (!loop->incoming_dest || (loop->incoming_dest != loop->head)) {
+         if (dump_file) fprintf (dump_file, ";; loop %d no incoming_src and no incoming_dest or incoming_dest != head\n", loop->loop_no);
+         return false;
+      }
+  }
+  if (!loop->incoming_src && (loop->incoming_dest != loop->head)) {
+      if (dump_file) fprintf (dump_file, ";; loop %d no incoming_src and incoming_dest != head\n", loop->loop_no);
+      return false;
+  }
+  if (loop->incoming_src)
+    {
+      /* Make sure the predecessor is before the loop start label, as required by
+	 the LSETUP instruction.  */
+      length = 0;
+      insn = BB_END (loop->incoming_src);
+      /* If we have to insert the LSETUP before a jump, count that jump in the
+	 length.  */
+      if (vec_safe_length (loop->incoming) > 1 || !(loop->incoming->last ()->flags & EDGE_FALLTHRU))
+	{
+	  gcc_assert (JUMP_P (insn));
+	  insn = PREV_INSN (insn);
+	  UnsafeHead = true;
+	}
+
+      for (; insn && insn != loop->start_label; insn = NEXT_INSN (insn)) length += length_for_loop (insn);
+
+      if (!insn)
+	{
+	  if (dump_file)
+	    fprintf (dump_file, ";; loop %d lsetup not before loop_start\n",
+		     loop->loop_no);
+	  return false;
+	}
+
+      if (length > MAX_LSETUP_DISTANCE)
+	{
+	  if (dump_file)
+	    fprintf (dump_file, ";; loop %d lsetup too far away\n", loop->loop_no);
+	  return false;
+	}
+    }
+
+  /* Check if start_label appears before loop_end and calculate the
+     offset between them.  We calculate the length of instructions
+     conservatively.  */
+  length = 0;
+  for (insn = loop->start_label; insn && insn != loop->loop_end; insn = NEXT_INSN (insn)) {
+/* */
+    if (dump_file) {
+	fprintf (dump_file, "Adding %d to loop length (%d) for insn\n", length_for_loop (insn), length);
+	print_rtl_single (dump_file, insn);
+    }
+/* */
+    length += length_for_loop (insn);
+  }
+
+  if (!insn)
+    {
+      if (dump_file)
+	fprintf (dump_file, ";; loop %d start_label not before loop_end\n",
+		 loop->loop_no);
+      return false;
+    }
+
+  loop->length = length;
+  if (loop->length > MAX_LOOP_LENGTH)
+    {
+      if (dump_file)
+	fprintf (dump_file, ";; loop %d too long\n", loop->loop_no);
+      return false;
+    }
+
+  /* Scan all the blocks to make sure they don't use iter_reg.  */
+  if (loop->iter_reg_used || loop->iter_reg_used_outside)
+    {
+      if (dump_file)
+	fprintf (dump_file, ";; loop %d uses iterator\n", loop->loop_no);
+      return false;
+    }
+
+  clobber0 = (TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LC0)
+              || TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LS0)
+              || TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LE0));
+  clobber1 = (TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LC1)
+              || TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LS1)
+              || TEST_HARD_REG_BIT (loop->regs_set_in_loop, REG_LE1));
+  if (clobber0 && clobber1)
+    {
+      if (dump_file)
+        fprintf (dump_file, ";; loop %d no loop reg available\n",
+                 loop->loop_no);
+      return false;
+    }
+
+  /* There should be an instruction before the loop_end instruction
+     in the same basic block. And the instruction must not be
+     - JUMP
+     - CONDITIONAL BRANCH
+     - CALL
+     - CSYNC
+     - SSYNC
+     - Returns (RTS, RTN, etc.)  */
+
+  bb = loop->tail;
+  last_insn = PREV_INSN (loop->loop_end);
+
+  while (1)
+    {
+      for (; last_insn != BB_HEAD (bb); last_insn = PREV_INSN (last_insn)) {
+		if (NONDEBUG_INSN_P (last_insn)) break;
+		{
+			/* Check if this insn could be a loop_end of an enclosed loop */
+			hwloop_info i;
+			unsigned ix;
+			bool hit_enclosed_end_label=false;
+			for (ix = 0; loop->loops.iterate (ix, &i); ix++) {
+				if (i->end_label == last_insn) {
+					hit_enclosed_end_label = true; break;
+				}
+			}
+			if (hit_enclosed_end_label) {
+				if (dump_file) {
+					fprintf(dump_file, " Hitting enclose loop end label (enclosed=%d), insn:\n", i->loop_no);
+					fprintf(dump_file, " Adding a nop after it\n");
+					print_rtl_single (dump_file, last_insn);
+
+				}
+      				last_insn = emit_insn_after (gen_forced_nop (), last_insn);
+				break;
+			}
+		}
+      }
+
+      if (last_insn != BB_HEAD (bb)) break;
+
+      if (single_pred_p (bb)
+	  && single_pred_edge (bb)->flags & EDGE_FALLTHRU
+	  && single_pred (bb) != ENTRY_BLOCK_PTR_FOR_FN (cfun))
+	{
+	  bb = single_pred (bb);
+	  last_insn = BB_END (bb);
+	  continue;
+	}
+      else {
+	  last_insn = NULL;
+	  break;
+	}
+    }
+
+  if (!last_insn) {
+      if (dump_file) fprintf (dump_file, ";; loop %d has no last instruction\n", loop->loop_no);
+      return false;
+    }
+
+  if (dump_file) {
+	fprintf (dump_file, " Loop loop_end Inst is:\n");
+	print_rtl_single (dump_file, loop->loop_end);
+	fprintf (dump_file, " Loop Last Inst is:\n");
+	print_rtl_single (dump_file, last_insn);
+  }
+  /* We check if last_inst can be the target of a branch, if yes add a nop after last_inst.
+     Apply if BB(last_inst) != loop head since in this case the non fallthru edge is the loop back edge */
+  if ((bb != loop->head) && (!single_pred_p(bb) || !(single_pred_edge (bb)->flags & EDGE_FALLTHRU))) {
+	rtx_insn *pt;
+	int cnt=0;
+
+  	if (dump_file) {
+		fprintf (dump_file, " Loop last BB (b%d) is the target of non fallthru branches\n", bb->index);
+		fprintf (dump_file, " Single_pred: %s\n", single_pred_p(bb)?"Yes":"No");
+		if (single_pred_p(bb)) {
+			fprintf (dump_file, " Single_pred_edge fallthru: %s\n", (single_pred_edge(bb)->flags & EDGE_FALLTHRU)?"Yes":"No");
+		}
+	}
+	for (pt = BB_HEAD(bb); pt != last_insn; pt = NEXT_INSN (pt)) {
+		if (NONDEBUG_INSN_P(pt)) cnt++;
+
+ 	}
+	/* Could use a define containing the min number of inst that always have to be executed at loop tail */
+	if (cnt == 0) {
+  		if (dump_file) {
+			fprintf (dump_file, " Branch to loop tail exist, adding a nop after last_insn\n");
+		}
+      		if (loop->length + 1 > MAX_LOOP_LENGTH) {
+	  		if (dump_file) fprintf (dump_file, ";; loop %d too long\n", loop->loop_no);
+	  		return false;
+		} else loop->length += 1;
+      		last_insn = emit_insn_after (gen_forced_nop (), last_insn);
+	}
+  }
+
+
+  if (JUMP_P (last_insn) && !any_condjump_p (last_insn))
+    {
+      if (dump_file)
+	fprintf (dump_file, ";; loop %d has bad last instruction\n",
+		 loop->loop_no);
+      return false;
+    }
+  /* In all other cases, try to replace a bad last insn with a nop.  */
+  else if (JUMP_P (last_insn)
+	   || CALL_P (last_insn)
+	   || recog_memoized (last_insn) == CODE_FOR_simple_return_internal
+	   || GET_CODE (PATTERN (last_insn)) == ASM_INPUT
+	   || asm_noperands (PATTERN (last_insn)) >= 0) {
+      	if (loop->length + 1 > MAX_LOOP_LENGTH) {
+	  	if (dump_file) fprintf (dump_file, ";; loop %d too long\n", loop->loop_no);
+	  	return false;
+	} else loop->length += 1;
+      	if (dump_file) {
+		fprintf (dump_file, ";; loop %d has bad last insn; replace with nop\n", loop->loop_no);
+		fprintf (dump_file, " Loop Last Inst is:\n");
+		print_rtl_single (dump_file, last_insn);
+	}
+
+      	last_insn = emit_insn_after (gen_forced_nop (), last_insn);
+    }
+
+  if (loop->length < MIN_LOOP_LENGTH && TARGET_MASK_SLOOP) {
+	Padding = true;
+  } else {
+  	while (loop->length < MIN_LOOP_LENGTH) {
+      		last_insn = emit_insn_after (gen_forced_nop (), last_insn);
+		loop->length += 1;
+  	}
+  }
+  loop->last_insn = last_insn;
+
+  /* The loop is good for replacement.  */
+  start_label = loop->start_label;
+  end_label = gen_label_rtx ();
+  iter_reg = loop->iter_reg;
+  // scratch_reg = gen_reg_rtx (SImode);
+
+  loop->end_label = end_label;
+
+  /* Create a sequence containing the loop setup.  */
+
+	if (loop->depth == 1 && !clobber1) {
+		loop_index = 1;
+		lc_reg = gen_rtx_REG (SImode, REG_LC1);
+		ls_reg = gen_rtx_REG (SImode, REG_LS1);
+		le_reg = gen_rtx_REG (SImode, REG_LE1);
+		SET_HARD_REG_BIT (loop->regs_set_in_loop, REG_LC1);
+	} else {
+		loop_index = 0;
+		lc_reg = gen_rtx_REG (SImode, REG_LC0);
+		ls_reg = gen_rtx_REG (SImode, REG_LS0);
+		le_reg = gen_rtx_REG (SImode, REG_LE0);
+		SET_HARD_REG_BIT (loop->regs_set_in_loop, REG_LC0);
+	}
+
+	{
+		df_ref *use_rec;
+		struct df_link *defs;
+
+		if (dump_file) {
+			fprintf (dump_file, "------- Processing loop end insn uses ---\n");
+			print_rtl_single (dump_file, loop->loop_end);
+		}
+  		for (use_rec = &DF_INSN_USES(loop->loop_end); *use_rec; use_rec++) {
+			df_ref use = *use_rec;
+			if (dump_file) {
+				fprintf (dump_file, "+++++ Processing use of\n");
+				print_rtl_single(dump_file, DF_REF_REG (use));
+				fprintf (dump_file, " in insn %d:\n", INSN_UID (loop->loop_end));
+			}
+			if (!rtx_equal_p(iter_reg, DF_REF_REG(use))) {
+				if (dump_file) {
+					fprintf (dump_file, "   Use is not iter reg, continue\n");
+					fprintf (dump_file, "++++ End of process use\n");
+				}
+				continue;
+			}
+			for (defs = DF_REF_CHAIN (use); defs; defs = defs->next)
+				if (! DF_REF_IS_ARTIFICIAL (defs->ref)) {
+					rtx_insn *def_insn = DF_REF_INSN(defs->ref);
+
+					if (dump_file) {
+						fprintf (dump_file, " Use defined by insn\n");
+						print_rtl_single(dump_file, DF_REF_INSN (defs->ref));
+					}
+					if (def_insn != loop->loop_end) {
+						if (!single_def_iter) single_def_iter = def_insn;
+						else if (single_def_iter != def_insn) {
+							single_def_iter = NULL; break;
+						}
+					}
+					
+				}
+			if (!single_def_iter) {
+				if (dump_file) {
+					fprintf (dump_file, "    Aborting insn uses parsing, multiple defs of iter_reg found\n");
+					fprintf (dump_file, "++++ End of process use\n");
+				}
+				break;
+			} else if (dump_file) fprintf (dump_file, "++++ End of process use\n");
+		}
+		if (single_def_iter) {
+			int iter_count = -1;
+			int multiple_use = 0;
+			 df_ref *def_rec;
+
+			// rtx set = SET_SRC(PATTERN(single_def_iter));
+			// rtx dst = SET_DEST(PATTERN(single_def_iter));
+
+			if (GET_CODE(PATTERN(single_def_iter)) == SET && GET_CODE(SET_SRC(PATTERN(single_def_iter))) == CONST_INT) {
+				iter_count = INTVAL(SET_SRC(PATTERN(single_def_iter)));
+				init_iter_is_constant = true;
+				init_iter_value = iter_count;
+				if (dump_file) {
+					fprintf (dump_file, " Iter reg is defined once and only once:\n");
+					print_rtl_single(dump_file, single_def_iter);
+					fprintf (dump_file, "\n Iter count is: %d\n", iter_count);
+				}
+			} else {
+				if (dump_file) {
+					fprintf (dump_file, " Iter reg is defined once and only once but not as constant:\n");
+					print_rtl_single(dump_file, single_def_iter);
+				}
+			}
+			if (init_iter_is_constant) {
+				for (def_rec = &DF_INSN_DEFS (insn); *def_rec; def_rec++) {
+					if (dump_file) {
+						fprintf (dump_file, "  Init iter output is used by insn:\n");
+						print_rtl_single(dump_file, DF_REF_INSN(*def_rec));
+					}
+					if (DF_REF_INSN(*def_rec) != loop->loop_end) {
+						multiple_use = 1;
+						if (dump_file) {
+							fprintf (dump_file, "  Cannot remove Init, used outside loop exit:\n");
+							print_rtl_single(dump_file, DF_REF_INSN(*def_rec));
+						}
+					}
+				}
+				if (!multiple_use) {
+					rtx dst = SET_DEST(PATTERN(single_def_iter));
+					if (reg_used_between_p(dst, single_def_iter, NEXT_INSN(BB_END(BLOCK_FOR_INSN(single_def_iter))))) {
+						if (dump_file) fprintf (dump_file, "\n Found Init use after single_def_iter in it's BB\n");
+					} else {
+						single_def_iter_removable = true;
+						if (dump_file) fprintf (dump_file, "\n Init can be removed\n");
+					}
+				}
+			}
+		}
+		if (dump_file) fprintf (dump_file, "------- END OF Processing loop end insn uses ---\n");
+	}
+
+	if (dump_file) {
+		fprintf (dump_file, "  Loop Length is %d\n", loop->length);
+		fprintf (dump_file, "  single_def_iter_removable=%s\n", single_def_iter_removable?"yes":"no");
+		fprintf (dump_file, "  init_iter_is_constant=%s, %d\n", init_iter_is_constant?"yes":"no", init_iter_value);
+		fprintf (dump_file, "  Padding=%s\n", Padding?"yes":"no");
+
+	}
+ 	start_sequence ();
+	if (loop->length > 65535 || Padding) {
+		/* Use long form:
+			lp.count level, iter_reg
+			lp.start level, start_label
+			lp.end level, end_label
+
+			if immediate(iter_reg) and if 0 <= imm_value <= 2047
+				we can use lp.counti level, imm_value
+		*/
+		if (init_iter_is_constant && (init_iter_value < 4095))
+			seq_end = emit_insn(gen_set_hwloop_lc  (lc_reg, gen_int_mode(init_iter_value, SImode), gen_int_mode (loop_index, SImode)));
+		else
+			seq_end = emit_insn(gen_set_hwloop_lc  (lc_reg, iter_reg,                              gen_int_mode (loop_index, SImode)));
+		emit_insn(gen_set_hwloop_lpstart(ls_reg, gen_rtx_LABEL_REF (Pmode, start_label), gen_int_mode (loop_index, SImode)));
+		emit_insn(gen_set_hwloop_lpend  (le_reg, gen_rtx_LABEL_REF (Pmode,   end_label), gen_int_mode (loop_index, SImode)));
+
+	} else if (loop->length > 15 || !init_iter_is_constant || (init_iter_is_constant && (init_iter_value >= 4096)) ) {
+		/* Use short form:
+			lp.count level, end_label, iter_reg
+		*/
+		single_def_iter_removable = false;
+  		seq_end = emit_insn(gen_set_hwloop_lc_le(lc_reg, iter_reg, le_reg,
+							 gen_rtx_LABEL_REF (Pmode, end_label),
+							 gen_int_mode (loop_index, SImode)));
+	} else {
+		/* Use short form:
+			lp.counti level, end_label, iter_reg
+			
+			immediate(iter_reg) and 0 <= imm_value <= 2047 and loop->length <= 31
+				we can use lp.counti level, loop_end, imm_value
+		*/
+	  	gcc_assert (loop->length <= 16 && init_iter_is_constant && (init_iter_value <= 4095));
+  		seq_end = emit_insn(gen_set_hwloop_lc_le(lc_reg,
+						         gen_int_mode(init_iter_value, SImode),
+							 le_reg,
+							 gen_rtx_LABEL_REF (Pmode, end_label),
+							 gen_int_mode (loop_index, SImode)));
+
+	}
+	insn_insert = (BB_HEAD (loop->head));
+
+  if (dump_file)
+    {
+      fprintf (dump_file, ";; replacing loop %d initializer with\n",
+	       loop->loop_no);
+      print_rtl_single (dump_file, seq_end);
+      fprintf (dump_file, ";; replacing loop %d terminator with\n",
+	       loop->loop_no);
+      print_rtl_single (dump_file, loop->loop_end);
+    }
+
+  /* If the loop isn't entered at the top, also create a jump to the entry
+     point.  */
+  if (!loop->incoming_src && loop->head != loop->incoming_dest)
+    {
+      rtx label = BB_HEAD (loop->incoming_dest);
+      /* If we're jumping to the final basic block in the loop, and there's
+	 only one cheap instruction before the end (typically an increment of
+	 an induction variable), we can just emit a copy here instead of a
+	 jump.  */
+/*
+      if (loop->incoming_dest == loop->tail
+	  && next_real_insn (label) == last_insn
+	  && asm_noperands (last_insn) < 0
+	  && GET_CODE (PATTERN (last_insn)) == SET)
+	{
+	  seq_end = emit_insn (copy_rtx (PATTERN (last_insn)));
+	}
+      else
+*/
+	{
+	  emit_jump_insn (gen_jump (label));
+	  seq_end = emit_barrier ();
+	}
+    }
+
+  seq = get_insns ();
+  end_sequence ();
+
+  if (loop->incoming_src)
+    {
+	if (UnsafeHead) {
+      		basic_block new_bb;
+      		edge e;
+      		edge_iterator ei;
+		if (dump_file) {
+			fprintf(dump_file, "Loop %d has unsafe head, creating new BB for loop init and redirecting incoming to it.\n", loop->loop_no);
+		}
+
+      		emit_insn_before (seq, insn_insert);
+      		seq = emit_label_before (gen_label_rtx (), seq);
+      		new_bb = create_basic_block (seq, seq_end, loop->head->prev_bb);
+      		FOR_EACH_EDGE (e, ei, loop->incoming) {
+	  		if (!(e->flags & EDGE_FALLTHRU) || e->dest != loop->head)
+	    			redirect_edge_and_branch_force (e, new_bb);
+	  		else redirect_edge_succ (e, new_bb);
+		}
+      		e = make_edge (new_bb, loop->head, 0);
+	} else emit_insn_before (seq, insn_insert);
+/*
+      rtx prev = BB_END (loop->incoming_src);
+      if (vec_safe_length (loop->incoming) > 1 || !(loop->incoming->last ()->flags & EDGE_FALLTHRU)) {
+	  gcc_assert (JUMP_P (prev));
+	  prev = PREV_INSN (prev);
+      }
+      emit_insn_after (seq, prev);
+*/
+    }
+  else
+    {
+      basic_block new_bb;
+      edge e;
+      edge_iterator ei;
+#ifdef OLD
+#ifdef ENABLE_CHECKING
+      if (loop->head != loop->incoming_dest)
+	{
+	  /* We aren't entering the loop at the top.  Since we've established
+	     that the loop is entered only at one point, this means there
+	     can't be fallthru edges into the head.  Any such fallthru edges
+	     would become invalid when we insert the new block, so verify
+	     that this does not in fact happen.  */
+	  FOR_EACH_EDGE (e, ei, loop->head->preds)
+	    gcc_assert (!(e->flags & EDGE_FALLTHRU));
+	}
+#endif
+#endif
+      /* emit_insn_before (seq, BB_HEAD (loop->head)); */
+      emit_insn_before (seq, insn_insert);
+      seq = emit_label_before (gen_label_rtx (), seq);
+
+      new_bb = create_basic_block (seq, seq_end, loop->head->prev_bb);
+      FOR_EACH_EDGE (e, ei, loop->incoming)
+	{
+	  if (!(e->flags & EDGE_FALLTHRU)
+	      || e->dest != loop->head)
+	    redirect_edge_and_branch_force (e, new_bb);
+	  else
+	    redirect_edge_succ (e, new_bb);
+	}
+      e = make_edge (new_bb, loop->head, 0);
+    }
+
+  if (single_def_iter_removable) delete_insn (single_def_iter);
+  // delete_insn (loop->loop_end);
+  /* Insert the loop end label before the last instruction of the loop.  */
+  /* BUG RiscV, hwloop hw messes up the loop last inst and consider as last the inst right after the last
+     so we emit after and not before */
+  emit_label_before (loop->end_label, loop->last_insn);
+
+  return true;
+}
+
+/* A callback for the hw-doloop pass.  Called when a loop we have discovered
+   turns out not to be optimizable; we have to split the doloop_end pattern
+   into a subtract and a test.  */
+static void
+hwloop_fail (hwloop_info loop)
+{
+      rtx insn, test;
+      rtx jmp_label;
+
+      emit_insn_before (gen_addsi3 (loop->iter_reg,
+				    loop->iter_reg,
+				    constm1_rtx),
+			loop->loop_end);
+
+      jmp_label = JUMP_LABEL(loop->loop_end);
+      if (jmp_label != loop->start_label) {
+	if (dump_file) {
+		fprintf(dump_file, "Loop %d is failing and branch_target(loop_end) != Start_Label(Loop)\n", loop->loop_no);
+	}
+      }
+      test = gen_rtx_NE (VOIDmode, loop->iter_reg, const0_rtx);
+      insn = emit_jump_insn_before (gen_cbranchsi4 (test,
+						    loop->iter_reg, const0_rtx,
+						    jmp_label),
+				    loop->loop_end);
+
+      JUMP_LABEL (insn) = jmp_label; // loop->start_label;
+      LABEL_NUSES (jmp_label)++;
+      // LABEL_NUSES (loop->start_label)++;
+      delete_insn (loop->loop_end);
+}
+
+/* A callback for the hw-doloop pass.  This function examines INSN; if
+   it is a loop_end pattern we recognize, return the reg rtx for the
+   loop counter.  Otherwise, return NULL_RTX.  */
+
+static rtx
+hwloop_pattern_reg (rtx_insn *insn)
+{
+  rtx reg;
+
+  if ((Pulp_Cpu<PULP_V1) || TARGET_MASK_NOHWLOOP || !JUMP_P (insn) || recog_memoized (insn) != CODE_FOR_loop_end)
+    return NULL_RTX;
+
+  reg = SET_DEST (XVECEXP (PATTERN (insn), 0, 1));
+  if (!REG_P (reg))
+    return NULL_RTX;
+  return reg;
+}
+
+static struct hw_doloop_hooks riscv_doloop_hooks =
+{
+  hwloop_pattern_reg,
+  hwloop_optimize,
+  hwloop_fail
+};
+
+/* Run from machine_dependent_reorg, this pass looks for doloop_end insns
+   and tries to rewrite the RTL of these loops so that proper Blackfin
+   hardware loops are generated.  */
+
+static void
+riscv_reorg_loops (void)
+{
+  df_chain_add_problem (DF_UD_CHAIN + DF_DU_CHAIN);
+  df_analyze ();
+
+  reorg_loops (false, &riscv_doloop_hooks);
+  // reorg_loops (true, &riscv_doloop_hooks);
+
+  df_live_add_problem ();
+  df_live_set_all_dirty ();
+  df_analyze ();
+}
+
+static void
+riscv_reorg (void)
+{
+  /* We are freeing block_for_insn in the toplev to keep compatibility
+     with old MDEP_REORGS that are not CFG based.  Recompute it now.  */
+  compute_bb_for_insn ();
+
+  df_analyze ();
+
+  /* Doloop optimization */
+  if (cfun->machine->has_hardware_loops) riscv_reorg_loops ();
+
+  df_finish_pass (false);
+}
+
+typedef struct GTY(()) import_export_symbol
+{
+  tree decl;
+  const char *name;
+} import_export_symbol;
+
+/* Define gc'd vector type for import_export_symbol.  */
+
+/* Vector of import_export_symbol pointers.  */
+static GTY(()) vec<import_export_symbol, va_gc> *import_symbols;
+static GTY(()) vec<import_export_symbol, va_gc> *export_symbols;
+
+static void riscv_globalize_decl_name (FILE * stream, tree decl)
+
+{
+	if (TREE_CODE(decl) == VAR_DECL) {
+		tree attrs;
+		const char *name = XSTR (XEXP (DECL_RTL (decl), 0), 0);
+		attrs = DECL_ATTRIBUTES (decl);
+     		if ((attrs && lookup_attribute ("export_var", attrs))) {
+			import_export_symbol p = {decl, name};
+			// printf("Found Var Decl export on %s\n", name);
+  			vec_safe_push (export_symbols, p);
+		}
+	}
+	default_globalize_decl_name(stream, decl);
+}
+
+void riscv_output_external (FILE *file, tree decl, const char *name)
+
+{
+	gcc_assert (file == asm_out_file);
+	import_export_symbol p = {decl, name};
+	tree attrs;
+
+  	if (decl) {
+
+		attrs = DECL_ATTRIBUTES (decl);
+     		if ((attrs && lookup_attribute ("import_var", attrs))) {
+			// printf("Found Var Decl import on %s\n", name);
+  			vec_safe_push (import_symbols, p);
+		}
+/*
+     		if ((attrs && lookup_attribute ("export_var", attrs))) {
+			printf("Found Var Decl export on %s\n", name);
+		}
+*/
+
+		attrs = TYPE_ATTRIBUTES (TREE_TYPE(decl));
+		if ((attrs && lookup_attribute ("import", attrs))) {
+			// printf("Found Func import on %s\n", name);
+  			vec_safe_push (import_symbols, p);
+		}
+		if ((attrs && lookup_attribute ("export" ,attrs) && !DECL_ARTIFICIAL(decl))) {
+			// printf("Found Func export on %s, builtin: %s, Artificial: %s\n",
+				// name, DECL_IS_BUILTIN(decl)?"Yes":"No", DECL_ARTIFICIAL(decl)?"Yes":"No");
+  			vec_safe_push (export_symbols, p);
+		}
+  	}
+}
+
+static void riscv_file_end (void)
+
+{
+	static int InImportSection=0;
+	static int InExportSection=0;
+	unsigned int i;
+	import_export_symbol *p;
+
+	for (i = 0; vec_safe_iterate (import_symbols, i, &p); i++) {
+		tree decl = p->decl;
+		if (!InImportSection) {
+			fprintf(asm_out_file, "\n\t.section\t.pulp.import,\"aw\",@note\n");
+			InImportSection = 1;
+		}
+		if (SYMBOL_REF_REFERENCED_P (XEXP (DECL_RTL (decl), 0))) {
+			fprintf(asm_out_file, "\t.weak\t%s\n", p->name);
+			fprintf(asm_out_file, "\t.type\t%s, @function\n", p->name);
+			fprintf(asm_out_file, "\t.size\t%s, 4\n", p->name);
+			fprintf(asm_out_file, "%s:\n", p->name);
+			fprintf(asm_out_file, "\t.zero\t4\n");
+		}
+	}
+	for (i = 0; vec_safe_iterate (export_symbols, i, &p); i++) {
+		tree decl = p->decl;
+		if (!InExportSection) {
+			fprintf(asm_out_file, "\n\t.section\t.pulp.export,\"\",@note\n");
+			InExportSection = 1;
+		}
+		fprintf(asm_out_file, "\t.string \"%s\"\n", p->name);
+	}
+	if (InImportSection) {
+		fprintf(asm_out_file, "\t.section\t.pulp.import.names,\"\",@note\n");
+		fprintf(asm_out_file, "\t.align\t2\n");
+		fprintf(asm_out_file, "\t.string \"N\"\n");
+		fprintf(asm_out_file, "\t.section\t.pulp.import.relocs,\"\",@note\n");
+		fprintf(asm_out_file, "\t.align\t2\n");
+		fprintf(asm_out_file, "\t.string \"R\"\n");
+	}
+	vec_free (import_symbols);
+	vec_free (export_symbols);
+
+}
+
+/* TODO: why do we disable LRA? */
+static bool
+riscv_lra_p (void)
+{
+  return 0;
+}
+#undef TARGET_LRA_P
+#define TARGET_LRA_P riscv_lra_p
+
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
@@ -5129,6 +6722,45 @@ riscv_hard_regno_rename_ok (unsigned from_regno ATTRIBUTE_UNUSED,
 /* The low bit is ignored by jump instructions so is safe to use.  */
 #undef TARGET_CUSTOM_FUNCTION_DESCRIPTORS
 #define TARGET_CUSTOM_FUNCTION_DESCRIPTORS 1
+
+#undef  TARGET_FOLD_BUILTIN
+#define TARGET_FOLD_BUILTIN riscv_fold_builtin
+
+#undef TARGET_REMAPPED_BUILTIN
+#define TARGET_REMAPPED_BUILTIN riscv_remapped_builtin
+
+#undef TARGET_OMP_TARGET_DECL
+#define TARGET_OMP_TARGET_DECL riscv_omp_target_decl
+
+#undef  TARGET_CAN_USE_DOLOOP_P
+#define TARGET_CAN_USE_DOLOOP_P riscv_can_use_doloop_p
+
+#undef TARGET_INVALID_WITHIN_DOLOOP
+#define TARGET_INVALID_WITHIN_DOLOOP riscv_invalid_within_doloop
+
+#undef  TARGET_MACHINE_DEPENDENT_REORG
+#define TARGET_MACHINE_DEPENDENT_REORG riscv_reorg
+
+#undef TARGET_VECTOR_MODE_SUPPORTED_P
+#define TARGET_VECTOR_MODE_SUPPORTED_P riscv_vector_mode_supported_p
+
+#undef TARGET_VECTORIZE_PREFERRED_SIMD_MODE
+#define TARGET_VECTORIZE_PREFERRED_SIMD_MODE riscv_preferred_simd_mode
+
+#undef TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT
+#define TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT riscv_builtin_support_vector_misalignment
+
+#undef TARGET_VECTORIZE_VECTOR_ALIGNMENT_REACHABLE
+#define TARGET_VECTORIZE_VECTOR_ALIGNMENT_REACHABLE riscv_vector_alignment_reachable
+
+#undef TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST
+#define TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST riscv_builtin_vectorization_cost
+
+#undef TARGET_ASM_FILE_END
+#define TARGET_ASM_FILE_END riscv_file_end
+
+#undef TARGET_ASM_GLOBALIZE_DECL_NAME
+#define TARGET_ASM_GLOBALIZE_DECL_NAME riscv_globalize_decl_name
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

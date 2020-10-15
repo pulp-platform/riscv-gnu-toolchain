@@ -18,6 +18,8 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include <sstream>
+/* TODO: remove this with the pulp chip struct hack */
+#define _WITH_PULP_CHIP_INFO_FUNCT_
 
 #define INCLUDE_STRING
 #include "config.h"
@@ -32,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "config/riscv/riscv-protos.h"
 
 #define RISCV_DONT_CARE_VERSION -1
+
 
 /* Subset info.  */
 struct riscv_subset_t
@@ -417,6 +420,7 @@ riscv_subset_list::parse_sv_or_non_std_ext (const char *p,
   unsigned major_version = 0;
   unsigned minor_version = 0;
   size_t ext_type_len = strlen (ext_type);
+  // printf("balasr: trying to parse non standard\n");
 
   while (*p)
     {
@@ -443,12 +447,15 @@ riscv_subset_list::parse_sv_or_non_std_ext (const char *p,
 
       end_of_version
 	= parsing_subset_version (q, &major_version, &minor_version,
-				  /* default_major_version= */ 2,
+				  /* PULP: we need this to be 0, so that we can
+				     distinguish pulpv0 and pulpv2 */
+				  /* default_major_version= */ 0,
 				  /* default_minor_version= */ 0,
 				  /* std_ext_p= */ FALSE);
 
       *q = '\0';
 
+      //printf("balasr: subset=%s, major=%d, minor=%d\n", subset, major_version, minor_version);
       add (subset, major_version, minor_version);
       free (subset);
       p += end_of_version - subset;
@@ -575,6 +582,153 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
   if (subset_list->lookup ("c"))
     *flags |= MASK_RVC;
 
+  /* PULP specific extension parsing
+     "none"
+     "riscv"
+     "pulpv0"
+     "pulpv1"
+     "pulpv2
+     "pulpv3"
+     "gap8"
+     "pulpslim" */
+  /* TODO: instead of using the hacky pulp global struct, we should define and
+     use TARGET_PULP_"FEATURE" macros to enable subsets of the pulp extensions.
+     A "xpulpv3" would then, for example, define the appropriate set of TARGET_*
+     macros. Furthermore, we then can add flags for explicitely enable these
+     subset of the pulp extension (e.g. xpulpdsp for dsp instructions) */
+
+  if (Pulp_DP_Format == PULP_DP_FORMAT32)
+    *flags |= MASK_MAP_DOUBLE_TO_FLOAT;
+
+  if (subset_list->lookup("xriscv"))
+    {
+      *flags |= MASK_MUL;
+
+      if (*flags & MASK_64BIT)
+	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
+		  "configuration", isa);
+
+      if (*flags & MASK_ATOMIC)
+	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
+		  "configuration", isa);
+
+      if (riscv_abi != ABI_ILP32)
+	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
+    }
+
+  if (subset_list->lookup("xpulpv"))
+    {
+      if (subset_list->lookup("xpulpv", 0, 0))
+	{
+	  *flags &= ~MASK_MUL;
+	  riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V0)
+	    Pulp_Cpu = PULP_V0;
+	  else
+	    error("-xpulpv0: pulp architecture is already defined as %s",
+		  PulpProcessorImage(Pulp_Cpu));
+	}
+      else if (subset_list->lookup("xpulpv", 1, 0))
+	{
+	  *flags &= ~MASK_MUL;
+	  riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V1)
+	    Pulp_Cpu = PULP_V1;
+	  else
+	    error("-xpulpv1: pulp architecture is already defined as %s",
+		  PulpProcessorImage(Pulp_Cpu));
+
+	}
+      else if (subset_list->lookup("xpulpv", 2, 0))
+	{
+	  *flags &= ~MASK_MUL;
+	  if (Pulp_DP_Format != PULP_DP_FORMAT32)
+	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V2)
+	    Pulp_Cpu = PULP_V2;
+	  else
+	    error("-xpulpv2: pulp architecture is already defined as %s",
+		  PulpProcessorImage(Pulp_Cpu));
+	}
+      else if (subset_list->lookup("xpulpv", 3, 0))
+	{
+	  *flags |= MASK_MUL;
+	  if (Pulp_DP_Format != PULP_DP_FORMAT32)
+	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V3)
+	    Pulp_Cpu = PULP_V3;
+	  else
+	    error("-xpulpv3: pulp architecture is already defined as %s",
+		  PulpProcessorImage(Pulp_Cpu));
+	  //printf("balasr: parsed xpulpv3\n");
+	}
+      else
+	{
+	  error_at (loc, "%<-march=%s%>: unknown xpulpv version",
+		    isa);
+	}
+
+      if (*flags & MASK_64BIT)
+	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
+		  "configuration", isa);
+
+      if (*flags & MASK_ATOMIC)
+	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
+		  "configuration", isa);
+
+      /* TODO: reinstantiate this when we remove the abi forcing */
+      /* if (riscv_abi != ABI_ILP32)
+	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
+      */
+    }
+
+  if (subset_list->lookup("xgap", 8, 0))
+    {
+      *flags |= MASK_MUL;
+      riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+
+      if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
+	Pulp_Cpu = PULP_GAP8;
+      else
+	error("-xgap8: pulp architecture is already defined as %s",
+	      PulpProcessorImage(Pulp_Cpu));
+
+      if (*flags & MASK_64BIT)
+	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
+		  "configuration", isa);
+
+      if (*flags & MASK_ATOMIC)
+	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
+		  "configuration", isa);
+    }
+
+
+  if (subset_list->lookup("xpulpslim"))
+    {
+      riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
+
+      if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
+	Pulp_Cpu = PULP_GAP8;
+      else
+	error("-xgap8: pulp architecture is already defined as %s",
+	      PulpProcessorImage(Pulp_Cpu));
+
+      if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_SLIM)
+	Pulp_Cpu = PULP_SLIM;
+      else
+	error("-xpulpslim: pulp architecture is already defined as %s",
+	      PulpProcessorImage(Pulp_Cpu));
+
+      if (*flags & MASK_64BIT)
+	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
+		  "configuration", isa);
+
+      if (*flags & MASK_ATOMIC)
+	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
+		  "configuration", isa);
+    }
+
+
   if (current_subset_list)
     delete current_subset_list;
 
@@ -589,10 +743,46 @@ riscv_handle_option (struct gcc_options *opts,
 		     const struct cl_decoded_option *decoded,
 		     location_t loc)
 {
+  bool defined = false;
   switch (decoded->opt_index)
     {
     case OPT_march_:
       riscv_parse_arch_string (decoded->arg, &opts->x_target_flags, loc);
+      return true;
+
+    /* pulp chip parsing */
+    case OPT_mchip_:
+      switch (decoded->value) {
+      case PULP_CHIP_NONE:
+	break;
+      case PULP_CHIP_HONEY:
+	riscv_parse_arch_string ("rv32ixpulpv0",  &opts->x_target_flags, loc);
+	defined=true;
+	break;
+      case PULP_CHIP_PULPINO:
+	riscv_parse_arch_string ("rv32ixpulpv1",  &opts->x_target_flags, loc);
+	defined=true;
+	break;
+      case PULP_CHIP_GAP8:
+	/* TODO: what is the correct arch string here? */
+	riscv_parse_arch_string ("rv32imcxgap8",  &opts->x_target_flags, loc);
+	defined=true;
+	break;
+      default:
+	break;
+      }
+      if (defined) {
+	/* TODO: remove global struct hack */
+	_Pulp_FC = Pulp_Defined_Chips[decoded->value].Pulp_FC;
+	_Pulp_PE = Pulp_Defined_Chips[decoded->value].Pulp_PE;
+	_Pulp_L2_Size = Pulp_Defined_Chips[decoded->value].Pulp_L2_Size;
+	_Pulp_L1_Cluster_Size = Pulp_Defined_Chips[decoded->value].Pulp_L1_Cluster_Size;
+	_Pulp_L1_FC_Size = Pulp_Defined_Chips[decoded->value].Pulp_L1_FC_Size;
+      }
+      return true;
+
+    case OPT_mcpu_:
+      error("Use -march to pass pulp cpu info and not -mcpu");
       return true;
 
     default:

@@ -3,6 +3,10 @@
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target for GNU compiler.
 
+   PULP family support contributed by Eric Flamand (eflamand@iis.ee.ethz.ch) at ETH-Zurich
+   and Greenwaves Technologies (eric.flamand@greenwaves-technologies.com)
+
+
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
@@ -24,7 +28,58 @@ along with GCC; see the file COPYING3.  If not see
 
       NARGS is the number of arguments.
       LIST contains the return-type code followed by the codes for each
-        argument type.  */
+        argument type.
 
+   Argument- and return-type codes are either modes or one of the following:
+
+      VOID for void_type_node
+      INT for integer_type_node
+      POINTER for ptr_type_node
+      V2H for opaque_V2HI_type_node
+      V4Q for opaque_V4QI_type_node
+
+   (we don't use PTR because that's a ANSI-compatibillity macro).
+
+   Please keep this list lexicographically sorted by the LIST argument.  */
+
+DEF_RISCV_FTYPE (1, (INT, INT))
+DEF_RISCV_FTYPE (1, (V2HI, V2HI))
+DEF_RISCV_FTYPE (1, (V4QI, V4QI))
+DEF_RISCV_FTYPE (1, (INT, VOID))
 DEF_RISCV_FTYPE (1, (USI, VOID))
 DEF_RISCV_FTYPE (1, (VOID, USI))
+DEF_RISCV_FTYPE (1, (VOID, VOID))
+
+DEF_RISCV_FTYPE (2, (INT, INT, INT))
+DEF_RISCV_FTYPE (2, (INT, POINTER, INT))
+DEF_RISCV_FTYPE (2, (INT, SHORT, SHORT))
+DEF_RISCV_FTYPE (2, (INT, V2HI, INT))
+DEF_RISCV_FTYPE (2, (INT, V2HI, V2HI))
+DEF_RISCV_FTYPE (2, (INT, V4QI, INT))
+DEF_RISCV_FTYPE (2, (INT, V4QI, V4QI))
+DEF_RISCV_FTYPE (2, (V2HI, SHORT, SHORT))
+DEF_RISCV_FTYPE (2, (V2HI, V2HI, V2HI))
+DEF_RISCV_FTYPE (2, (V4QI, V4QI, V4QI))
+DEF_RISCV_FTYPE (2, (VOID, INT, INT))
+
+DEF_RISCV_FTYPE (3, (INT, INT, INT, INT))
+DEF_RISCV_FTYPE (3, (INT, INT, SHORT, INT))
+DEF_RISCV_FTYPE (3, (INT, SHORT, SHORT, INT))
+DEF_RISCV_FTYPE (3, (INT, V2HI, INT, INT))
+DEF_RISCV_FTYPE (3, (INT, V2HI, V2HI, INT))
+DEF_RISCV_FTYPE (3, (INT, V4QI, INT, INT))
+DEF_RISCV_FTYPE (3, (INT, V4QI, V4QI, INT))
+DEF_RISCV_FTYPE (3, (V2HI, V2HI, V2HI, V2HI))
+DEF_RISCV_FTYPE (3, (V4QI, V4QI, V4QI, V4QI))
+DEF_RISCV_FTYPE (3, (V4QI, CHAR, CHAR, V4QI))
+DEF_RISCV_FTYPE (3, (VOID, INT, INT, INT))
+DEF_RISCV_FTYPE (3, (VOID, INT, POINTER, INT))
+DEF_RISCV_FTYPE (3, (VOID, POINTER, INT, INT))
+
+DEF_RISCV_FTYPE (4, (INT, INT, INT, INT, INT))
+DEF_RISCV_FTYPE (4, (SHORT, SHORT, SHORT, INT, INT))
+DEF_RISCV_FTYPE (4, (INT, SHORT, SHORT, INT, INT))
+DEF_RISCV_FTYPE (4, (V4QI, CHAR, CHAR, CHAR, CHAR))
+
+DEF_RISCV_FTYPE (5, (INT, INT, INT, INT, INT, INT))
+DEF_RISCV_FTYPE (5, (INT, SHORT, SHORT, INT, INT, INT))

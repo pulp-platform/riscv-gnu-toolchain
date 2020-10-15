@@ -45,6 +45,44 @@
 
   ;; Stack tie
   UNSPEC_TIE
+
+  ;; Vector permutations
+  UNSPEC_VEC_PERM1
+  UNSPEC_VEC_PERM2
+  UNSPEC_VEC_PERM3
+  UNSPEC_VEC_PERM4
+  UNSPEC_VEC_PERM5
+
+  ;; Viterbi
+  UNSPEC_VIT_MAX
+  UNSPEC_VIT_SEL
+
+  ;; Bit manipulation
+  UNSPEC_BINS_REG
+  UNSPEC_BEXTS_REG
+  UNSPEC_BEXTU_REG
+
+  ;; Force read write
+  UNSPEC_READSI
+  UNSPEC_WRITESI
+
+  ;; Read write CSR
+  UNSPEC_SPR_READ
+  UNSPEC_SPR_WRITE
+  UNSPEC_SPR_BIT_SET
+  UNSPEC_SPR_BIT_CLR
+
+  ;; Nop
+  UNSPEC_NOP
+
+  ;; Hardware loops
+  UNSPEC_LSETUP_END
+
+  ;; It handlers return
+  UNSPEC_ITU
+  UNSPEC_ITS
+  UNSPEC_ITH
+  UNSPEC_ITM
 ])
 
 (define_c_enum "unspecv" [
@@ -65,6 +103,34 @@
   UNSPECV_BLOCKAGE
   UNSPECV_FENCE
   UNSPECV_FENCE_I
+
+  ;; Hardware loops
+  UNSPECV_ALLOC
+  UNSPECV_LC_SET
+
+  ;; Read event unit
+  UNSPECV_READ_EVU
+
+  ;; Load Base + Offset
+  UNSPECV_OFFSETED_READ
+  UNSPECV_OFFSETED_READ_HALF
+  UNSPECV_OFFSETED_READ_BYTE
+  UNSPECV_OFFSETED_READ_OMP
+  UNSPECV_OFFSETED_WRITE
+  UNSPECV_OFFSETED_WRITE_HALF
+  UNSPECV_OFFSETED_WRITE_BYTE
+
+  ;; OpenMP experimental
+  UNSPECV_OMP_PULP_BARRIER
+  UNSPECV_OMP_PULP_CRITICAL_START
+  UNSPECV_OMP_PULP_CRITICAL_END
+
+  ;; Forced read write, volatile
+  UNSPECV_WRITESI_VOL
+  UNSPECV_READSI_VOL
+
+  ;; Read write CSR
+  UNSPECV_SPR_READ_VOL
 ])
 
 (define_constants
@@ -75,6 +141,14 @@
    (S0_REGNUM			8)
    (S1_REGNUM			9)
    (S2_REGNUM			18)
+
+   (REG_LC0                     66)
+   (REG_LC1                     67)
+   (REG_LE0                     68)
+   (REG_LE1                     69)
+   (REG_LS0                     70)
+   (REG_LS1                     71)
+   (VIT_REG                     72)
 
    (NORMAL_RETURN		0)
    (SIBCALL_RETURN		1)
@@ -110,7 +184,7 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF"
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF,V2HI,V4QI"
   (const_string "unknown"))
 
 ;; True if the main data type is twice the size of a word.
@@ -263,6 +337,11 @@
 ;; 32-bit moves for which we provide move patterns.
 (define_mode_iterator MOVE32 [SI])
 
+;; PULP mode
+(define_mode_iterator MODE_PULP [V4QI V2HI SF SI])
+(define_mode_iterator SUBDISF [QI HI SI (SF "!TARGET_HARD_FLOAT") V2HI V4QI])
+(define_mode_iterator SUBDI [QI HI SI])
+
 ;; 64-bit modes for which we provide move patterns.
 (define_mode_iterator MOVE64 [DI DF])
 
@@ -291,6 +370,12 @@
 ;; This attribute gives the length suffix for a sign- or zero-extension
 ;; instruction.
 (define_mode_attr size [(QI "b") (HI "h")])
+
+;; PULP mode
+(define_mode_attr size_mem   [(V4QI "4") (V2HI "4") (SF "4") (SI "4") (HI "2") (QI "1")])
+(define_mode_attr size_load_store [(V4QI "w") (V2HI "w") (SF "w") (SI "w") (QI "b") (HI "h")])
+(define_mode_attr LDSTMODE [(SI "SI") (HI "HI") (QI "QI")])
+(define_mode_attr LDSTINDMODE [(V4QI "V4QI") (V2HI "V2HI") (SF "SF") (SI "SI") (HI "HI") (QI "QI")])
 
 ;; Mode attributes for loads.
 (define_mode_attr load [(QI "lb") (HI "lh") (SI "lw") (DI "ld") (SF "flw") (DF "fld")])
@@ -368,6 +453,14 @@
 (define_code_iterator any_ge [ge geu])
 (define_code_iterator any_lt [lt ltu])
 (define_code_iterator any_le [le leu])
+
+;; PULP mode
+(define_code_attr su_mod     [(sign_extend "s") (zero_extend "u")])
+(define_code_attr su_mod_alt [(sign_extend "") (zero_extend "u")])
+
+;; This code iterator is used for operations followed by rounding and normalization
+(define_code_iterator norm_op [ashiftrt lshiftrt])
+(define_code_attr norm_sign   [(ashiftrt "") (lshiftrt "u")])
 
 ;; <u> expands to an empty string when doing a signed operation and
 ;; "u" when doing an unsigned operation.
@@ -586,8 +679,12 @@
   [(set (match_operand:SI          0 "register_operand" "=r")
 	(mult:SI (match_operand:SI 1 "register_operand" " r")
 		 (match_operand:SI 2 "register_operand" " r")))]
-  "TARGET_MUL"
-  { return TARGET_64BIT ? "mulw\t%0,%1,%2" : "mul\t%0,%1,%2"; }
+  "(Pulp_Cpu>=PULP_V0) || TARGET_MUL || (Pulp_Cpu==PULP_SLIM)"
+  {
+        if (TARGET_64BIT) return "mulw\t%0,%1,%2";
+        else if (Pulp_Cpu) return "p.mul\t%0,%1,%2";
+        else return "mul\t%0,%1,%2";
+  }
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")])
 
@@ -698,7 +795,7 @@
 		   (match_operand:SI 1 "register_operand" " r"))
 		 (any_extend:DI
 		   (match_operand:SI 2 "register_operand" " r"))))]
-  "TARGET_MUL && !TARGET_64BIT"
+  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
 {
   rtx temp = gen_reg_rtx (SImode);
   emit_insn (gen_mulsi3 (temp, operands[1], operands[2]));
@@ -717,8 +814,11 @@
 		     (any_extend:DI
 		       (match_operand:SI 2 "register_operand" " r")))
 	    (const_int 32))))]
-  "TARGET_MUL && !TARGET_64BIT"
-  "mulh<u>\t%0,%1,%2"
+  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
+  {
+        if (Pulp_Cpu) return "p.mulh<u>\t%0,%1,%2";
+        else return "mulh<u>\t%0,%1,%2";
+  }
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")])
 
@@ -729,7 +829,7 @@
 		   (match_operand:SI 1 "register_operand" " r"))
 		 (sign_extend:DI
 		   (match_operand:SI 2 "register_operand" " r"))))]
-  "TARGET_MUL && !TARGET_64BIT"
+  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
 {
   rtx temp = gen_reg_rtx (SImode);
   emit_insn (gen_mulsi3 (temp, operands[1], operands[2]));
@@ -748,8 +848,11 @@
 		     (sign_extend:DI
 		       (match_operand:SI 2 "register_operand" " r")))
 	    (const_int 32))))]
-  "TARGET_MUL && !TARGET_64BIT"
-  "mulhsu\t%0,%2,%1"
+  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
+  {
+        if (Pulp_Cpu) return "p.mulhsu\t%0,%1,%1";
+        else return "mulhsu\t%0,%2,%1";
+  }
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")])
 
@@ -765,8 +868,8 @@
   [(set (match_operand:SI             0 "register_operand" "=r")
 	(any_div:SI (match_operand:SI 1 "register_operand" " r")
 		    (match_operand:SI 2 "register_operand" " r")))]
-  "TARGET_DIV"
-  { return TARGET_64BIT ? "<insn>%i2w\t%0,%1,%2" : "<insn>%i2\t%0,%1,%2"; }
+  "(TARGET_DIV || ((Pulp_Cpu >= PULP_V2)||(Pulp_Cpu==PULP_SLIM)))"
+  { return TARGET_64BIT ? "<insn>%i2w\t%0,%1,%2" : Pulp_Cpu?"p.<insn>\t%0,%1,%2":"<insn>%i2\t%0,%1,%2"; }
   [(set_attr "type" "idiv")
    (set_attr "mode" "SI")])
 
@@ -930,6 +1033,15 @@
   [(set_attr "type" "fmove")
    (set_attr "mode" "<UNITMODE>")])
 
+;; Pulp Only
+(define_insn "abssi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (abs:SI (match_operand:SI 1 "register_operand" "r")))]
+  "(Pulp_Cpu>=PULP_V0)"
+  "p.abs\t%0,%1"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "SI")])
+
 (define_insn "copysign<mode>3"
   [(set (match_operand:ANYF 0 "register_operand"               "=f")
 	(unspec:ANYF [(match_operand:ANYF 1 "register_operand" " f")
@@ -972,6 +1084,1468 @@
   "fmax.<fmt>\t%0,%1,%2"
   [(set_attr "type" "fmove")
    (set_attr "mode" "<UNITMODE>")])
+
+
+;; Pulp Only
+(define_insn "sminsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (smin:SI (match_operand:SI 1 "register_operand" "r,r")
+                 (match_operand:SI 2 "nonmemory_operand" "r,J")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"@
+ p.min \t%0,%1,%2\t# signed min
+ p.min \t%0,%1,x0\t# signed min 0"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "smaxsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (smax:SI (match_operand:SI 1 "register_operand" "r,r")
+                 (match_operand:SI 2 "nonmemory_operand" "r,J")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"@
+ p.max \t%0,%1,%2\t# signed max
+ p.max \t%0,%1,x0\t# signed max 0"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "uminsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (umin:SI (match_operand:SI 1 "register_operand" "r")
+                 (match_operand:SI 2 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"p.minu \t%0,%1,%2\t# unsigned min"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "umaxsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (umax:SI (match_operand:SI 1 "register_operand" "r")
+                 (match_operand:SI 2 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"p.maxu \t%0,%1,%2\t# signed max"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;      AVG, AVGU
+;;
+;;  ....................
+
+;; PULP only
+(define_insn "avgsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI (match_operand:SI 1 "register_operand" "r")
+                         (match_operand:SI 2 "reg_or_0_operand" "rJ"))
+                (const_int 1)
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+{ return (Pulp_Cpu >= PULP_V2) ? "p.addN \t%0,%1,%z2,1" : "p.avg \t%0,%1,%z2"; }
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgusi3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI (match_operand:SI 1 "register_operand" "r")
+                         (match_operand:SI 2 "reg_or_0_operand" "rJ"))
+                (const_int 1)
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+{ return (Pulp_Cpu >= PULP_V2) ? "p.adduN \t%0,%1,%z2,1" : "p.avgu \t%0,%1,%z2"; }
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	BIT MANIPULATION
+;;
+;;  ....................
+;;
+
+;; PULP only
+(define_insn "popcountsi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (popcount:SI (match_operand:SI 1 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"p.cnt \t%0,%1\t# count bit set to 1"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clrsbsi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (clrsb:SI (match_operand:SI 1 "register_operand" "r"))
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"p.clb \t%0, %1\t # count leading bits, int"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "fl1si2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (minus:SI (const_int 31)
+                  (clz:SI (match_operand:SI 1 "register_operand" "r"))
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"p.fl1 \t%0,%1\t# position of first set bit from msb"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_expand "clzsi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (clz:SI (match_operand:SI 1 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"
+{
+        rtx reg = gen_reg_rtx (SImode);
+
+        emit_insn (gen_rtx_SET (reg, gen_rtx_CONST_INT(SImode, 31)));
+        emit_insn (gen_fl1si2(operands[0], operands[1]));
+        emit_insn (gen_subsi3(operands[0], reg, operands[0]));
+        DONE;
+}"
+)
+
+(define_insn "ctzsi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ctz:SI (match_operand:SI 1 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"p.ff1 \t%0,%1\t# position of first set bit from lsb"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_expand "paritysi2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (parity:SI (match_operand:SI 1 "register_operand" "r"))
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"
+{
+        emit_insn (gen_popcountsi2(operands[0], operands[1]));
+        emit_insn (gen_extzvsi(operands[0], operands[0], gen_rtx_CONST_INT(SImode, 1), gen_rtx_CONST_INT(SImode, 0)));
+        DONE;
+}"
+)
+
+;;
+;;  ....................
+;;
+;;	ROTATE RIGHT
+;;
+;;  ....................
+;;
+
+;; PULP only
+
+(define_insn "rotrsi3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (rotatert:SI (match_operand:SI 1 "register_operand" "r")
+                     (match_operand:SI 2 "register_operand" "r")))]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+  "p.ror \t%0,%1,%2\t# rotate"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+;;
+;;  ....................
+;;
+;;	PARTIAL PRODUCTS (16x16 into 32)
+;;
+;;  ....................
+;;
+
+;; PULP only
+;; Standard gcc patterns
+
+(define_insn "<su_mod_alt>mul<SHORT:mode>si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (mult:SI (any_extend:SI (match_operand:SHORT 1 "register_operand" "r"))
+                 (any_extend:SI (match_operand:SHORT 2 "register_operand" "r")))
+   )]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+"p.mul<su_mod> \t%0,%1,%2"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "smulhi3_highpart"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                         (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                )
+                (const_int 16)
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+  "p.mulsN \t%0,%1,%2,16\t # mul16x16 into 32 with right shift 16"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "umulhi3_highpart"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (mult:SI (zero_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                         (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                )
+                (const_int 16)
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+  "p.muluN \t%0,%1,%2,16\t # uns mul16x16 into 32 with right logical shift 16"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+;; Non standard gcc patterns
+
+(define_insn "mulhhs_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                 (ashiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+  "p.mulhhs \t%0,%1,%2"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulhhu_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                 (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+  "p.mulhhu \t%0,%1,%2"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	PARTIAL MULT (16x16 into 32) WITH NORM AND ROUNDING
+;;
+;;  ....................
+;;
+
+;; PULP only
+
+(define_insn "mulsNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                         (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.mulsN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulsRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                 (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "(!TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.mulsRN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+
+(define_insn "mulsRNr_hi3"
+  [(set (match_operand:HI 0 "register_operand" "=r")
+	(truncate:HI
+        	(ashiftrt:SI
+                	(plus:SI
+                        	(mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                 	 (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                        	)
+                        	(match_operand:SI 4 "immediate_operand" "i")
+                	)
+                	(match_operand:SI 3 "immediate_operand" "i")
+        	)
+	)
+   )
+  ]
+  "(!TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 15))"
+  "p.mulsRN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+
+
+
+(define_insn "muluNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (mult:SI (zero_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                         (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.muluN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "muluRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (mult:SI (zero_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                 (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.muluRN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulhhsNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                         (ashiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.mulhhsN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulhhuNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                         (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.mulhhuN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulhhsRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                 (ashiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.mulhhsRN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "mulhhuRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                 (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.mulhhuRN \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	PARTIAL MAC (16x16 into 32)
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "macs<mode>_si4"
+  [(set (match_operand:SI 0 "register_operand" "=a,r")
+        (plus:SI (mult:SI (sign_extend:SI (match_operand:SHORT 1 "register_operand" "r,r"))
+                          (sign_extend:SI (match_operand:SHORT 2 "register_operand" "r,r"))
+                 )
+                 (match_operand:SI 3 "register_operand" "r,0")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "@
+   p.macs \t%0,%1,%2,%3
+   p.macs \t%0,%1,%2"
+  [(set_attr "type" "imul,imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "macu<mode>_si4"
+  [(set (match_operand:SI 0 "register_operand" "=a,r")
+        (plus:SI (mult:SI (zero_extend:SI (match_operand:SHORT 1 "register_operand" "r,r"))
+                          (zero_extend:SI (match_operand:SHORT 2 "register_operand" "r,r"))
+                 )
+                 (match_operand:SI 3 "register_operand" "r,0")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "@
+   p.macu \t%0,%1,%2,%3
+   p.macu \t%0,%1,%2"
+  [(set_attr "type" "imul,imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machlsu_si4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (plus:SI (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                          (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                 )
+                 (match_operand:SI 3 "register_operand" "r")
+        )
+   )
+  ]
+  "((Pulp_Cpu==PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "p.machlsu \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machlu_si4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (plus:SI (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                          (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                 )
+                 (match_operand:SI 3 "register_operand" "r")
+        )
+   )
+  ]
+  "((Pulp_Cpu==PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "p.machlu \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machhs_si4"
+  [(set (match_operand:SI 0 "register_operand" "=a,r")
+        (plus:SI (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r,r") (const_int 16))
+                          (ashiftrt:SI (match_operand:SI 2 "register_operand" "r,r") (const_int 16))
+                 )
+                 (match_operand:SI 3 "register_operand" "r,0")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "@
+   p.machhs \t%0,%1,%2,%3
+   p.machhs \t%0,%1,%2"
+  [(set_attr "type" "imul,imul")
+   (set_attr "length" "1")]
+)
+
+(define_insn "machhu_si4"
+  [(set (match_operand:SI 0 "register_operand" "=a,r")
+        (plus:SI (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r,r") (const_int 16))
+                          (lshiftrt:SI (match_operand:SI 2 "register_operand" "r,r") (const_int 16))
+                 )
+                 (match_operand:SI 3 "register_operand" "r,0")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "@
+   p.machhu \t%0,%1,%2,%3
+   p.machhu \t%0,%1,%2"
+  [(set_attr "type" "imul,imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machls_si4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (plus:SI (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                          (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                 )
+                 (match_operand:SI 3 "register_operand" "r")
+        )
+   )
+  ]
+  "((Pulp_Cpu==PULP_V0) && !TARGET_MASK_NOPARTMAC)"
+  "p.machls \t%0,%1,%2,%3"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+
+;;
+;;  ....................
+;;
+;;	PARTIAL MAC (16x16 into 32) WITH ROUNDING AND NORM
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "macsNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                 (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                        )
+                        (match_operand:SI 3 "register_operand" "0")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], NULL, 31))"
+  "p.macsN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "macuNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (mult:SI (zero_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                 (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                        )
+                        (match_operand:SI 3 "register_operand" "0")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], NULL, 31))"
+  "p.macuN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "macsRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (plus:SI
+                                (mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                         (sign_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                                )
+                                (match_operand:SI 3 "register_operand" "0")
+                        )
+                        (match_operand:SI 5 "immediate_operand" "i")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31))"
+  "p.macsRN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "macuRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (plus:SI
+                                (mult:SI (zero_extend:SI (match_operand:HI 1 "register_operand" "r"))
+                                         (zero_extend:SI (match_operand:HI 2 "register_operand" "r"))
+                                )
+                                (match_operand:SI 3 "register_operand" "0")
+                        )
+                        (match_operand:SI 5 "immediate_operand" "i")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31))"
+  "p.macuRN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machhsNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                 (ashiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                        )
+                        (match_operand:SI 3 "register_operand" "0")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], NULL, 31))"
+  "p.machhsN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machhuNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                 (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                        )
+                        (match_operand:SI 3 "register_operand" "0")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], NULL, 31))"
+  "p.machhuN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machhsRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ashiftrt:SI
+                (plus:SI
+                        (plus:SI
+                                (mult:SI (ashiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                         (ashiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                                )
+                                (match_operand:SI 3 "register_operand" "0")
+                        )
+                        (match_operand:SI 5 "immediate_operand" "i")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31))"
+  "p.machhsRN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "machhuRNr_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (lshiftrt:SI
+                (plus:SI
+                        (plus:SI
+                                (mult:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "r") (const_int 16))
+                                         (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 16))
+                                )
+                                (match_operand:SI 3 "register_operand" "0")
+                        )
+                        (match_operand:SI 5 "immediate_operand" "i")
+                )
+                (match_operand:SI 4 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMULMACNORMROUND && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31))"
+  "p.machhuRN \t%0,%1,%2,%4"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	MAC (32x32 into 32)
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "maddsisi4"
+  [(set (match_operand:SI 0 "register_operand" "=a,r")
+        (plus:SI (mult:SI (match_operand:SI 1 "register_operand" "r,r")
+                          (match_operand:SI 2 "register_operand" "r,r"))
+                 (match_operand:SI 3 "register_operand" "r,0"))
+   )
+  ]
+"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMAC)"
+"@
+ p.mac \t%0,%1,%2,%3\t# mac 32x32 in 32 instruction
+ p.mac \t%0,%1,%2\t# mac 32x32 in 32 instruction"
+[(set_attr "type" "imul,imul")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "msubsisi4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (minus:SI (match_operand:SI 3 "register_operand" "0")
+		  (mult:SI (match_operand:SI 1 "register_operand" "r")
+                           (match_operand:SI 2 "register_operand" "r"))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOMAC)"
+"p.msu \t%0,%1,%2\t# mac 32x32 in 32 instruction"
+[(set_attr "type" "imul")
+ (set_attr "mode" "SI")]
+)
+
+
+;;
+;;  ....................
+;;
+;;	ADD/SUB WITH ROUNDING AND NORM
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "addN<norm_sign>_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (match_operand:SI 1 "register_operand" "r")
+                        (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.add<norm_sign>N \t%0,%1,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "addN<norm_sign>_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                )
+                (match_operand:SI 3 "register_operand" "r")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "p.add<norm_sign>Nr \t%0,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "subN<norm_sign>_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (minus:SI
+                        (match_operand:SI 1 "register_operand" "r")
+                        (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "p.sub<norm_sign>N \t%0,%1,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "subN<norm_sign>_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (minus:SI
+                        (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                )
+                (match_operand:SI 3 "register_operand" "r")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "p.sub<norm_sign>Nr \t%0,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "addRN<norm_sign>_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (plus:SI
+                                (match_operand:SI 1 "register_operand" "r")
+                                (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.add<norm_sign>RN \t%0,%1,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "addRN<norm_sign>_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (plus:SI (match_operand:SI 1 "register_operand" "0")
+                                 (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                        )
+			(ashift:SI (const_int 1)
+				   (minus:SI (match_operand:SI 3 "register_operand" "r") (const_int 1))
+				   ; (minus:SI (match_operand:SI 3 "nonmemory_operand" "r,i") (const_int 1))
+			)
+                )
+                (match_dup 3)
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "p.add<norm_sign>RNr \t%0,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "subRN<norm_sign>_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (minus:SI
+                                (match_operand:SI 1 "register_operand" "r")
+                                (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                        )
+                        (match_operand:SI 4 "immediate_operand" "i")
+                )
+                (match_operand:SI 3 "immediate_operand" "i")
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "p.sub<norm_sign>RN \t%0,%1,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "subRN<norm_sign>_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (norm_op:SI
+                (plus:SI
+                        (minus:SI
+                                (match_operand:SI 1 "register_operand" "0")
+                                (match_operand:SI 2 "reg_or_0_operand" "rJ")
+                        )
+			(ashift:SI (const_int 1)
+				   (minus:SI (match_operand:SI 3 "register_operand" "r") (const_int 1))
+			)
+                )
+                (match_dup 3)
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "p.sub<norm_sign>RNr \t%0,%z2,%3"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	CLIP/CLIPU
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "clip_maxmin"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smax:SI (smin:SI (match_operand:SI 1 "register_operand" "r")
+                          (match_operand:SI 2 "immediate_operand" "i"))
+                 (match_operand:SI 3 "immediate_operand" "i")))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP && riscv_valid_clip_operands (operands[2], operands[3], 1)"
+  "p.clip\\t%0,%1,%B2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clip_minmax"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smin:SI (smax:SI (match_operand:SI 1 "register_operand" "r")
+                          (match_operand:SI 2 "immediate_operand" "i"))
+                 (match_operand:SI 3 "immediate_operand" "i")))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP && riscv_valid_clip_operands (operands[3], operands[2], 1)"
+  "p.clip\\t%0,%1,%B3"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn"clip_minmax_reg"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smin:SI (smax:SI (match_operand:SI 1 "register_operand" "r")
+			  (neg:SI (plus:SI (match_operand:SI 2 "register_operand" "r") (const_int 1)))
+		 )
+		 (match_dup 2)))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP"
+  "p.clipr\\t%0,%1,%2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn"clip_maxmin_reg"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smax:SI (smin:SI (match_operand:SI 1 "register_operand" "r")
+			  (match_operand:SI 2 "register_operand" "r")
+		 )
+		 (neg:SI (plus:SI (match_dup 2) (const_int 1)))))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP"
+  "p.clipr\\t%0,%1,%2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clipu_maxmin"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smax:SI (smin:SI (match_operand:SI 1 "register_operand" "r")
+                          (match_operand:SI 2 "immediate_operand" "i"))
+                 (match_operand:SI 3 "immediate_operand" "i")))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP && riscv_valid_clip_operands (operands[2], operands[3], 0)"
+  "p.clipu\\t%0,%1,%B2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clipu_minmax"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smin:SI (smax:SI (match_operand:SI 1 "register_operand" "r")
+                          (match_operand:SI 2 "immediate_operand" "i"))
+                 (match_operand:SI 3 "immediate_operand" "i")))]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP && riscv_valid_clip_operands (operands[3], operands[2], 0)"
+  "p.clipu\\t%0,%1,%B3"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clipu_maxmin_reg"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smax:SI (smin:SI (match_operand:SI 1 "register_operand" "r")
+                          (match_operand:SI 2 "register_operand" "r")
+		 )
+		 (const_int 0)
+        )
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP"
+  "p.clipur\\t%0,%1,%2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "clipu_minmax_reg"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (smin:SI (smax:SI (match_operand:SI 1 "register_operand" "r") (const_int 0))
+		 (match_operand:SI 2 "register_operand" "r")
+        )
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOCLIP"
+  "p.clipur\\t%0,%1,%2"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	BIT INSERT/EXTRACT/EXTRACTU/SET/CLEAR
+;;
+;;  ....................
+
+;; PULP only
+
+(define_insn "bclrsi3"
+  [(set	(match_operand:SI 0 "register_operand" "=r")
+	(and:SI	(match_operand:SI 1 "register_operand" "r")
+		(match_operand:SI 2 "immediate_operand" "i")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 0, NULL, NULL))"
+{
+	int Offset, Size;
+	rtx xoperands[5];
+
+	(void) riscv_valid_bit_field_imm_operand(operands[2], NULL, 0, &Size, &Offset);
+	
+	xoperands[0] = operands[0];
+	xoperands[1] = operands[1];
+	xoperands[2] = operands[2];
+	xoperands[3] = gen_rtx_CONST_INT (SImode, Size-1);
+	xoperands[4] = gen_rtx_CONST_INT (SImode, Offset);
+	output_asm_insn("p.bclr \t%0,%1,%3,%4 # Bit clear", xoperands);
+	return "";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Size: R2[9..5], Offset: R2[4..0]
+;; R0 = R1 & ~((1<<((R2>>5)&0x1F)-1)<<(R2&0x1F)
+(define_insn "bclrsi3_reg"
+  [(set	(match_operand:SI 0 "register_operand" "=r")
+	(and:SI	(match_operand:SI 1 "register_operand" "r")
+		(not:SI (ashift:SI
+				(minus:SI
+					(ashift:SI (const_int 1)
+						   (plus:SI
+					   	   	(and:SI (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 5)) (const_int 31))
+							(const_int 1)
+						   )
+					)
+					(const_int 1)
+				)
+				(and:SI (match_dup 2) (const_int 31))
+			)
+		)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "p.bclrr\\t%0,%1,%2 # Bit clear reg"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "bsetsi3"
+  [(set	(match_operand:SI 0 "register_operand" "=r")
+	(ior:SI	(match_operand:SI 1 "register_operand" "r")
+		(match_operand:SI 2 "immediate_operand" "i")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 1, NULL, NULL))"
+{
+	int Offset, Size;
+	rtx xoperands[5];
+
+	(void) riscv_valid_bit_field_imm_operand(operands[2], NULL, 1, &Size, &Offset);
+	xoperands[0] = operands[0];
+	xoperands[1] = operands[1];
+	xoperands[2] = operands[2];
+	xoperands[3] = gen_rtx_CONST_INT (SImode, Size-1);
+	xoperands[4] = gen_rtx_CONST_INT (SImode, Offset);
+	output_asm_insn("p.bset \t%0,%1,%3,%4 # Bit set", xoperands);
+	return "";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Size: R2[9..5], Offset: R2[4..0]
+;; R0 = R1 | ((1<<((R2>>5)&0x1F)-1)<<(R2&0x1F)
+(define_insn "bsetsi3_reg"
+  [(set	(match_operand:SI 0 "register_operand" "=r")
+	(ior:SI	(match_operand:SI 1 "register_operand" "r")
+		(ashift:SI
+			(minus:SI
+				(ashift:SI (const_int 1)
+					   (plus:SI
+				   	   	(and:SI (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 5)) (const_int 31))
+						(const_int 1)
+					   )
+				)
+				(const_int 1)
+			)
+			(and:SI (match_dup 2) (const_int 31))
+		)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "p.bsetr\\t%0,%1,%2 # Bit set reg"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "extvsi"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (sign_extract:SI (match_operand:SI 1 "register_operand" "r")
+                         (match_operand:SI 2 "immediate_operand" "i")
+                         (match_operand:SI 3 "immediate_operand" "i")))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+	operands[2] = GEN_INT(INTVAL(operands[2])-1);
+ 	return "p.extract \t%0,%1,%2,%3 # Bit extract signed";
+}
+  [(set_attr "type" "logical")
+   (set_attr "length" "1")]
+)
+
+
+;; Size: R2[9..5], Offset: R2[4..0]
+(define_insn "bextracts_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (sign_extract:SI (match_operand:SI 1 "register_operand" "r")
+			 (plus:SI (and:SI (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 5)) (const_int 31))
+				  (const_int 1))
+			 (and:SI (match_dup 2) (const_int 31))
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "p.extractr \t%0,%1,%2 # Bit extract signed, arg reg"
+  [(set_attr "type" "logical")
+   (set_attr "length" "1")]
+)
+
+;; Size: R3[9..5], Offset: R3[4..0]
+(define_insn "bextracts_reg_alt_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec:SI [(match_operand:SI 1 "register_operand" "r,r")
+		    (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPEC_BEXTS_REG)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+  if (which_alternative == 0) {
+  	return "p.extractr \t%0,%1,%2 # Bit extract signed, arg reg";
+  } else {
+	rtx xoperands[4];
+	HOST_WIDE_INT Mask = INTVAL(operands[2]);
+
+	xoperands[0] = operands[0]; xoperands[1] =
+	xoperands[2] = gen_rtx_CONST_INT (SImode, (Mask>>5)&0x1F);
+	xoperands[3] = gen_rtx_CONST_INT (SImode, (Mask)&0x1F);
+	output_asm_insn("p.extract\t%0,%1,%2,%3 # Bit extract signed", xoperands);
+	return "";
+  }
+}
+[(set_attr "type" "logical,logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Size: R3[9..5], Offset: R3[4..0]
+(define_insn "bextractu_reg_alt_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec:SI [(match_operand:SI 1 "register_operand" "r,r")
+		    (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPEC_BEXTU_REG)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+  if (which_alternative == 0) {
+  	return "p.extractur \t%0,%1,%2 # Bit extract unsigned, reg arg";
+  } else {
+	rtx xoperands[4];
+	HOST_WIDE_INT Mask = INTVAL(operands[2]);
+
+	xoperands[0] = operands[0]; xoperands[1] =
+	xoperands[2] = gen_rtx_CONST_INT (SImode, (Mask>>5)&0x1F);
+	xoperands[3] = gen_rtx_CONST_INT (SImode, (Mask)&0x1F);
+	output_asm_insn("p.extractu\t%0,%1,%2,%3 # Bit extract unsigned", xoperands);
+	return "";
+  }
+}
+[(set_attr "type" "logical,logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "extzvsi"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (zero_extract:SI (match_operand:SI 1 "register_operand" "r")
+                         (match_operand:SI 2 "immediate_operand" "i")
+                         (match_operand:SI 3 "immediate_operand" "i")))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+	operands[2] = GEN_INT(INTVAL(operands[2])-1);
+  	return "p.extractu \t%0,%1,%2,%3 # Bit extract unsigned";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Size: R2[9..5], Offset: R2[4..0]
+(define_insn "bextractu_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (zero_extract:SI (match_operand:SI 1 "register_operand" "r")
+			 (plus:SI (and:SI (lshiftrt:SI (match_operand:SI 2 "register_operand" "r") (const_int 5)) (const_int 31))
+				  (const_int 1))
+			 (and:SI (match_dup 2) (const_int 31))
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "p.extractur \t%0,%1,%2 # Bit extract unsigned, reg arg"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "insvsi"
+  [(set (zero_extract:SI (match_operand:SI 0 "register_operand" "+r")
+                         (match_operand:SI 1 "immediate_operand" "i")
+                         (match_operand:SI 2 "immediate_operand" "i"))
+        (match_operand:SI 3 "reg_or_0_operand" "rJ")
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+	operands[1] = GEN_INT(INTVAL(operands[1])-1);
+  	if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  		return "p.insert\t%0,x0,%1,%2";
+  	else return "p.insert\t%0,%3,%1,%2";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "*insvsi_internal1"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (and:SI (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "immediate_operand" "i"))
+                (and:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
+                        (match_operand:SI 4 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bottom_bitmask_p (INTVAL (operands[4]))
+   && INTVAL(operands[2]) == ~INTVAL(operands[4])"
+{
+  int len, pos;
+  pos = riscv_bitmask (INTVAL (operands[4]), &len, SImode);
+  operands[2] = GEN_INT (pos);
+  operands[4] = GEN_INT (len-1);
+  if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  	return "p.insert\t%0,x0,%4,%2";
+  else return "p.insert\t%0,%3,%4,%2";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "*insvsi_internal2"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (and:SI (match_operand:SI 1 "reg_or_0_operand" "rJ")
+                        (match_operand:SI 2 "immediate_operand" "i"))
+                (and:SI (match_operand:SI 3 "register_operand" "0")
+                        (match_operand:SI 4 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bottom_bitmask_p (INTVAL (operands[2]))
+   && INTVAL(operands[2]) == ~INTVAL(operands[4])"
+{
+  int len, pos;
+  pos = riscv_bitmask (INTVAL (operands[2]), &len, SImode);
+  operands[2] = GEN_INT (pos);
+  operands[4] = GEN_INT (len-1);
+  if (operands[1] == CONST0_RTX (GET_MODE (operands[1])))
+  	return "p.insert\t%0,x0,%4,%2";
+  else return "p.insert\t%0,%1,%4,%2";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "invsipat1"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (and:SI (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "immediate_operand" "i"))
+                (and:SI (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
+			           (match_operand:SI 5 "immediate_operand" "i"))
+                        (match_operand:SI 4 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)
+   && riscv_bitmask (INTVAL (operands[4]), NULL, VOIDmode) == INTVAL (operands[5])
+   && INTVAL(operands[2]) == ~INTVAL(operands[4])"
+{
+  int len;
+  riscv_bitmask (INTVAL (operands[4]), &len, SImode);
+  operands[4] = GEN_INT (len-1);
+  if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  	return "p.insert\t%0,x0,%4,%5";
+  else return "p.insert\t%0,%3,%4,%5";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Size: R3[9..5], Offset: R3[4..0]
+(define_insn "binsert_reg_si3"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec:SI [(match_operand:SI 1 "register_operand" "0,0")
+		    (match_operand:SI 2 "reg_or_0_operand" "rJ,rJ")
+		    (match_operand:SI 3 "nonmemory_operand" "r,i")] UNSPEC_BINS_REG)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+{
+  if (which_alternative == 0) {
+  	return "p.insertr\t%0,%z2,%3";
+  } else {
+	rtx xoperands[5];
+	HOST_WIDE_INT Mask = INTVAL(operands[3]);
+
+	xoperands[0] = operands[0]; xoperands[1] = operands[1]; xoperands[2] = operands[2];
+	xoperands[3] = gen_rtx_CONST_INT (SImode, (Mask>>5)&0x1F);
+	xoperands[4] = gen_rtx_CONST_INT (SImode, (Mask)&0x1F);
+	output_asm_insn("p.insert\t%0,%z2,%3,%4", xoperands);
+	return "";
+  }
+}
+[(set_attr "type" "logical,logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "*insvsi_internal4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (and:SI (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
+				   (match_operand:SI 5 "immediate_operand" "i"))
+                        (match_operand:SI 4 "immediate_operand" "i"))
+	 	(and:SI (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)
+   && riscv_bitmask (INTVAL (operands[4]), NULL, VOIDmode) == INTVAL (operands[5])
+   && INTVAL(operands[2]) == ~INTVAL(operands[4])"
+{
+  int len;
+  riscv_bitmask (INTVAL (operands[4]), &len, SImode);
+  operands[4] = GEN_INT (len-1);
+  if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  	return "p.insert\t%0,x0,%4,%5";
+  else return "p.insert\t%0,%3,%4,%5";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "*insvsi_internal5"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (and:SI (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "immediate_operand" "i"))
+                (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
+			   (match_operand:SI 4 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
+{
+  int len;
+  riscv_bitmask (~INTVAL (operands[2]), &len, SImode);
+  operands[2] = GEN_INT (len-1);
+  if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  	return "p.insert\t%0,x0,%2,%4";
+  else return "p.insert\t%0,%3,%2,%4";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "*insvsi_internal4"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (ior:SI (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
+			   (match_operand:SI 4 "immediate_operand" "i"))
+		(and:SI (match_operand:SI 1 "register_operand" "0")
+                        (match_operand:SI 2 "immediate_operand" "i"))))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
+{
+  int len;
+  riscv_bitmask (~INTVAL (operands[2]), &len, SImode);
+  operands[2] = GEN_INT (len-1);
+  if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
+  	return "p.insert\t%0,x0,%2,%4";
+  else return "p.insert\t%0,%3,%2,%4";
+}
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
 
 ;;
 ;;  ....................
@@ -1113,6 +2687,7 @@
   [(set_attr "move_type" "move,load")
    (set_attr "mode" "DI")])
 
+;; TODO: PULP has a patch for this, but it looks like it breaks sign extensions
 (define_insn_and_split "extend<SHORT:mode><SUPERQI:mode>2"
   [(set (match_operand:SUPERQI   0 "register_operand"     "=r,r")
 	(sign_extend:SUPERQI
@@ -1322,6 +2897,7 @@
   [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fmove,fpstore")
    (set_attr "mode" "DI")])
 
+;; TODO PULP has reg - reg load and store
 (define_insn "*movdi_64bit"
   [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r, m,  *f,*f,*r,*f,*m")
 	(match_operand:DI 1 "move_operand"         " r,T,m,rJ,*r*J,*m,*f,*f,*f"))]
@@ -1331,6 +2907,472 @@
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fmove,fpstore")
    (set_attr "mode" "DI")])
+
+;; PULP only
+;; Reg - Reg load and store
+
+(define_insn "load<mode>_ind_reg_reg"
+  [(set (match_operand:SUBDISF 0 "register_operand" "=r")
+        (mem:SUBDISF (plus:SI (match_operand:SI 1 "register_operand" "r")
+                              (match_operand:SI 2 "register_operand" "r")))
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "p.l<size_load_store>\t%0,%2(%1)\t# load reg(reg)"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "load<mode>_<u>ext_ind_reg_reg"
+  [(set (match_operand:SUBDISF 0 "register_operand" "=r")
+        (mem:SUBDISF (any_extend: SI (plus:SI (match_operand:SI 1 "register_operand" "r")
+                                     (match_operand:SI 2 "register_operand" "r"))))
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "p.l<size_load_store><u>\t%0,%2(%1)\t# load reg(reg), ext"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "store<mode>_ind_reg_reg"
+  [(set (mem:SUBDISF (plus:SI (match_operand:SI 0 "register_operand" "r,r")
+                              (match_operand:SI 1 "register_operand" "r,r")))
+        (match_operand:SUBDISF 2 "nonmemory_operand" "r,J")
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "@
+   p.s<size_load_store>\t%2,%1(%0)\t# store reg(reg)
+   p.s<size_load_store>\tx0,%1(%0)\t# store 0 reg(reg)"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+;; Event Unit Read Indirect
+
+(define_insn "load_evt_unit"
+  [(set (match_operand:SI 0 "register_operand" "=&r,r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_READ_EVU)
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2 || Pulp_Cpu==PULP_SLIM)"
+  "@
+   p.elw \t%0,%2(%1)\t# Load from Event Unit
+   p.elw \t%0,%2(%1)\t# Load from Event Unit"
+  [(set_attr "type" "load,load")
+   (set_attr "mode" "SI,SI")]
+)
+
+;; Read/Write special purpose registers
+
+(define_insn "read_spr"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(unspec:SI [(match_operand:SI 1 "immediate_operand" "L")] UNSPEC_SPR_READ)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "csrrs \t%0,%1,x0\t# SPR read"
+  [(set_attr "type" "load")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "read_spr_vol"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(unspec_volatile:SI [(match_operand:SI 1 "immediate_operand" "L")] UNSPECV_SPR_READ_VOL)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "csrrs \t%0,%1,x0\t# SPR read, volatile"
+  [(set_attr "type" "load")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "write_spr"
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+ "@
+  csrrw \tx0,%0,%1\t# SPR write
+  csrrwi \tx0,%0,%1\t# SPR write uimm5"
+)
+
+(define_insn "read_then_write_spr"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+ "@
+  csrrw \t%0,%1,%2\t# SPR read then write
+  csrrwi \t%0,%1,%2\t# SPR read then write uimm5"
+)
+
+(define_insn "spr_bit_set"
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "@
+  csrrs \tx0,%0,%1\t# SPR bit set
+  csrrsi \tx0,%0,%1\t# SPR bit set uimm5"
+)
+ 
+(define_insn "read_then_spr_bit_set"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "@
+  csrrs \t%0,%1,%2\t# Read then SPR bit set
+  csrrsi \t%0,%1,%2\t# Read then SPR bit set uimm5"
+)
+
+(define_insn "spr_bit_clr"
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "@
+  csrrc \tx0,%0,%1\t# SPR bit clr
+  csrrci \tx0,%0,%1\t# SPR bit clr uimm5"
+)
+
+(define_insn "read_then_spr_bit_clr"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
+  "@
+  csrrc \t%0,%1,%2\t# Read then SPR bit clr
+  csrrci \t%0,%1,%2\t# Read then SPR bit clr uimm5"
+)
+
+
+;; Open MP support
+
+(define_expand "pulp_omp_barrier"
+  [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_BARRIER)]
+  "(Pulp_Cpu>=PULP_V2)"
+{
+	rtx Reg1 = gen_reg_rtx (SImode);
+	rtx Reg2 = gen_reg_rtx (SImode);
+	emit_insn(gen_movsi(Reg1, gen_rtx_CONST_INT(SImode, 0x00204000)));
+	emit_insn(gen_load_evt_unit(Reg2, Reg1, gen_rtx_CONST_INT(SImode, 0x21c)));
+	DONE;
+}
+)
+
+
+;;(define_insn "pulp_omp_barrier"
+;;  [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_BARRIER)
+;;   (clobber (match_scratch:SI 0 "=&r"))
+;;  ]
+;;  "(Pulp_Cpu>=PULP_V2)"
+;;  "* return riscv_explicit_load_store(operands[0], NULL, 0x2017216, 1);"
+;;)
+
+(define_expand "pulp_omp_critical_start"
+  [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_CRITICAL_START)]
+  "(Pulp_Cpu>=PULP_V2)"
+{
+	rtx Reg1 = gen_reg_rtx (SImode);
+	rtx Reg2 = gen_reg_rtx (SImode);
+	emit_insn(gen_movsi(Reg1, gen_rtx_CONST_INT(SImode, 0x00204000)));
+	emit_insn(gen_load_evt_unit(Reg2, Reg1, gen_rtx_CONST_INT(SImode, 0xc0)));
+	DONE;
+}
+)
+
+;; (define_insn "pulp_omp_critical_start"
+;;   [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_CRITICAL_START)
+;;    (clobber (match_scratch:SI 0 "=&r"))
+;;   ]
+;;   "(Pulp_Cpu>=PULP_V2)"
+;;   "* return riscv_explicit_load_store(operands[0], gen_rtx_REG(SImode, 0), 0x2016448, 1);"
+;; )
+
+(define_insn "writesivol"
+  [(unspec_volatile [(match_operand:SI 0 "register_operand" "rJ,rJ")
+		     (match_operand:SI 1 "register_operand" "r,r")
+		     (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_WRITESI_VOL)]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.sw \t%z0,%2(%1)\t# Write volatile
+   p.sw \t%z0,%2(%1)\t# Write volatile"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "writesi"
+  [(unspec [(match_operand:SI 0 "register_operand" "rJ,rJ")
+	    (match_operand:SI 1 "register_operand" "r,r")
+	    (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPEC_WRITESI)]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.sw \t%z0,%2(%1)\t# Write non volatile
+   p.sw \t%z0,%2(%1)\t# Write non volatile"
+  [(set_attr "type" "store,store")
+
+  (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "readsivol"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "immediate_operand" "r,i")] UNSPECV_READSI_VOL)
+   )
+  ]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.lw \t%0,%2(%1)\t# Read volatile
+   p.lw \t%0,%2(%1)\t# Read volatile"
+  [(set_attr "type" "load,load")
+   (set_attr "mode" "SI,SI")]
+)
+
+;;(define_insn "readsi"
+;;  [(set (match_operand:SI 0 "register_operand" "=r,r")
+;;	(mem:SI (plus:SI (match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "const_arith_operand" "r,i")))
+;;   )
+;;  ]
+;; "(Pulp_Cpu>=PULP_V2)"
+;;  "@
+;;   p.lw \t%0,%2(%1)\t# Read non volatile
+;;   p.lw \t%0,%2(%1)\t# Read non volatile"
+;;  [(set_attr "type" "load,load")
+;;   (set_attr "mode" "SI,SI")]
+;;)
+
+(define_expand "pulp_omp_critical_end"
+  [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_CRITICAL_END)]
+  "(Pulp_Cpu>=PULP_V2)"
+{
+	rtx Reg1 = gen_reg_rtx (SImode);
+	rtx Reg2 = gen_reg_rtx (SImode);
+	emit_insn(gen_movsi(Reg1, gen_rtx_CONST_INT(SImode, 0x00204000)));
+	emit_insn(gen_writesivol(Reg2, Reg1, gen_rtx_CONST_INT(SImode, 0xc0)));
+	DONE;
+}
+)
+
+;;(define_insn "pulp_omp_critical_end"
+;;  [(unspec_volatile [(const_int 0)] UNSPECV_OMP_PULP_CRITICAL_END)
+;;   (clobber (match_scratch:SI 0 "=&r"))
+;;  ]
+;;  "(Pulp_Cpu>=PULP_V2)"
+;;  "* return riscv_explicit_load_store(operands[0], gen_rtx_REG(SImode, 0), 0x2016448, 0);"
+;;)
+
+(define_insn "OffsetedRead"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_READ)
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.lw \t%0,%2(%1)\t# Volatile Load word offseted
+   p.lw \t%0,%2(%1)\t# Volatile Load word offseted"
+)
+
+(define_insn "OffsetedReadHalf"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_READ_HALF)
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.lh \t%0,%2(%1)\t# Volatile Load half word offseted
+   p.lh \t%0,%2(%1)\t# Volatile Load half word offseted"
+)
+
+(define_insn "OffsetedReadByte"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_READ_BYTE)
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.lb \t%0,%2(%1)\t# Volatile Load byte offseted
+   p.lb \t%0,%2(%1)\t# Volatile Load byte offseted"
+)
+
+(define_insn "OffsetedWrite"
+  [(unspec_volatile [(match_operand:SI 0 "reg_or_0_operand" "rJ,rJ")
+		     (match_operand:SI 1 "register_operand" "r,r")
+		     (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_WRITE)]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.sw \t%z0,%2(%1)\t# Offseted Write volatile
+   p.sw \t%z0,%2(%1)\t# Offseted Write volatile"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "OffsetedWriteHalf"
+  [(unspec_volatile [(match_operand:SI 0 "reg_or_0_operand" "rJ,rJ")
+		     (match_operand:SI 1 "register_operand" "r,r")
+		     (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_WRITE_HALF)]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.sh \t%z0,%2(%1)\t# Offseted Write Half volatile
+   p.sh \t%z0,%2(%1)\t# Offseted Write Half volatile"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "HI,HI")]
+)
+
+(define_insn "OffsetedWriteByte"
+  [(unspec_volatile [(match_operand:SI 0 "reg_or_0_operand" "rJ,rJ")
+		     (match_operand:SI 1 "register_operand" "r,r")
+		     (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_OFFSETED_WRITE_BYTE)]
+ "(Pulp_Cpu>=PULP_V2)"
+  "@
+   p.sb \t%z0,%2(%1)\t# Offseted Write Byte volatile
+   p.sb \t%z0,%2(%1)\t# Offseted Write Byte volatile"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "QI,QI")]
+)
+
+(define_insn "OffsetedReadOMP"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r") (match_operand:SI 2 "immediate_operand" "i")] UNSPECV_OFFSETED_READ_OMP)
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2)"
+  "p.lw \t%0,%2(%1)\t# Volatile Load offseted (OMP)"
+)
+
+(define_insn "OffsetedReadNonVol"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	;; (mem:SI (plus:SI (match_operand:SI 1 "register_operand" "r") (match_operand:SI 2 "immediate_operand" "i")))
+	(mem:SI (plus:SI (match_operand:SI 1 "register_operand" "r") (match_operand:SI 2 "const_arith_operand" "i")))
+   )
+  ]
+  "(Pulp_Cpu>=PULP_V2)"
+  "p.lw \t%0,%2(%1)\t# Non volatile Load offseted"
+)
+
+;; Post modified load and store
+
+(define_insn "load<mode>_ind_postinc"
+  [(set (match_operand:SUBDISF 0 "register_operand" "=r")
+        (mem:SUBDISF (post_inc:SI (match_operand:SI 1 "register_operand" "+r")))
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "p.l<size_load_store>\t%0,<size_mem>(%1!)\t# load post inc"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "load<mode>_<u>ext_ind_postinc"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (any_extend:SI
+             (mem:SUBDISF (post_inc:SI (match_operand:SI 1 "register_operand" "+r")))
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "p.l<size_load_store><u>\t%0,<size_mem>(%1!)\t# load post inc, ext"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "load<mode>_ind_postdec"
+  [(set (match_operand:SUBDISF 0 "register_operand" "=r")
+        (mem:SUBDISF (post_dec:SI (match_operand:SI 1 "register_operand" "+r")))
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "p.l<size_load_store>\t%0,-<size_mem>(%1!)\t# load post dec"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "load<mode>_<u>ext_ind_postdec"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (any_extend:SI
+             (mem:SUBDISF (post_dec:SI (match_operand:SI 1 "register_operand" "+r")))
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "p.l<size_load_store><u>\t%0,-<size_mem>(%1!)\t# load post dec, ext"
+  [(set_attr "type" "load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+
+(define_insn "load<mode>_ind_post_mod"
+  [(set (match_operand:SUBDISF 0 "register_operand" "=r,r")
+        (mem:SUBDISF (post_modify:SI (match_operand:SI 1 "register_operand" "+r,r")
+                                     (plus:SI (match_dup 1) (match_operand:SI 2 "nonmemory_operand" "r,I"))))
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "@
+   p.l<size_load_store>\t%0,%2(%1!)\t# load post modify reg
+   p.l<size_load_store>\t%0,%2(%1!)\t# load post modify imm"
+  [(set_attr "type" "load,load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "load<mode>_<u>ext_ind_post_mod"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (any_extend:SI
+                    (mem:SUBDISF (post_modify:SI (match_operand:SI 1 "register_operand" "+r,r")
+                                                 (plus:SI (match_dup 1) (match_operand:SI 2 "nonmemory_operand" "r,I"))))
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "@
+   p.l<size_load_store><u>\t%0,%2(%1!)\t# load post modify reg, ext
+   p.l<size_load_store><u>\t%0,%2(%1!)\t# load post modify imm, ext"
+  [(set_attr "type" "load,load")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "store<mode>_ind_postinc"
+  [(set (mem:SUBDISF (post_inc:SI (match_operand:SI 0 "register_operand" "+r,r")))
+        (match_operand:SUBDISF 1 "nonmemory_operand" "r,J")
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "@
+   p.s<size_load_store>\t%1,<size_mem>(%0!)\t# store post inc
+   p.s<size_load_store>\tx0,<size_mem>(%0!)\t# store 0 post inc"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "store<mode>_ind_postdec"
+  [(set (mem:SUBDISF (post_dec:SI (match_operand:SI 0 "register_operand" "+r,r")))
+        (match_operand:SUBDISF 1 "nonmemory_operand" "r,J")
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "@
+   p.s<size_load_store>\t%1,-<size_mem>(%0!)\t# store post dec
+   p.s<size_load_store>\tx0,-<size_mem>(%0!)\t# store 0 post dec"
+  [(set_attr "type" "store,store")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
+
+(define_insn "store<mode>_ind_postmod"
+  [(set (mem:SUBDISF (post_modify:SI (match_operand:SI 0 "register_operand" "+r,r,r,r")
+                                     (plus:SI (match_dup 0) (match_operand:SI 2 "nonmemory_operand" "r,r,I,I"))))
+        (match_operand:SUBDISF 1 "nonmemory_operand" "r,J,r,J")
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "@
+   p.s<size_load_store>\t%1,%2(%0!)\t# store post modify reg
+   p.s<size_load_store>\tx0,%2(%0!)\t# store 0 post modify reg
+   p.s<size_load_store>\t%1,%2(%0!)\t# store post modify imm
+   p.s<size_load_store>\tx0,%2(%0!)\t# store 0 post modify imm"
+  [(set_attr "type" "store,store,store,store")
+   (set_attr "mode" "<LDSTINDMODE>")]
+)
 
 ;; 32-bit Integer moves
 
@@ -1351,6 +3393,58 @@
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fpstore")
    (set_attr "mode" "SI")])
+
+;; PULP only
+;; 32-bit v2hi vector moves
+
+(define_expand "movv2hi"
+  [(set (match_operand:V2HI 0 "")
+        (match_operand:V2HI 1 ""))]
+  ""
+{
+  if (riscv_legitimize_move (V2HImode, operands[0], operands[1]))
+    DONE;
+})
+
+(define_insn "movv2hi_internal"
+  [(set (match_operand:V2HI 0 "nonimmediate_operand" "=r,r,r,m")
+        (match_operand:V2HI 1 "move_operand" "r,T,m,rJ"))]
+  "(register_operand (operands[0], V2HImode) || reg_or_0_operand (operands[1], V2HImode)) &&
+    !riscv_filter_pulp_operand(operands[0], !(Pulp_Cpu>=PULP_V0)) &&
+    !riscv_filter_pulp_operand(operands[1], !(Pulp_Cpu>=PULP_V0))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,const,load,store")
+   (set_attr "mode" "V2HI")])
+
+;; 32-bit v4qi vector moves
+
+(define_expand "movv4qi"
+  [(set (match_operand:V4QI 0 "")
+        (match_operand:V4QI 1 ""))]
+  ""
+{
+  if (riscv_legitimize_move (V4QImode, operands[0], operands[1]))
+    DONE;
+})
+
+(define_insn "movv4qi_internal"
+  [(set (match_operand:V4QI 0 "nonimmediate_operand" "=r,r,r,m")
+        (match_operand:V4QI 1 "move_operand" "r,T,m,rJ"))]
+  "(register_operand (operands[0], V4QImode) || reg_or_0_operand (operands[1], V4QImode)) &&
+    !riscv_filter_pulp_operand(operands[0], !(Pulp_Cpu>=PULP_V0)) &&
+    !riscv_filter_pulp_operand(operands[1], !(Pulp_Cpu>=PULP_V0))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,const,load,store")
+   (set_attr "mode" "V4QI")])
+
+(define_expand "movmisalign<mode>"
+ [(set (match_operand:MODE_PULP 0 "nonimmediate_operand" "")
+       (match_operand:MODE_PULP 1 "general_operand" ""))]
+ ""
+{
+  emit_move_insn (operands[0], operands[1]);
+  DONE;
+})
 
 ;; 16-bit Integer moves
 
@@ -1440,6 +3534,7 @@
   [(set_attr "move_type" "fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
    (set_attr "mode" "SF")])
 
+;; TODO: PULP has a patch here that changes depending on POST_INC/POST_DEC/POST_MODIFY
 (define_insn "*movsf_softfloat"
   [(set (match_operand:SF 0 "nonimmediate_operand" "= r,r,m")
 	(match_operand:SF 1 "move_operand"         " Gr,m,r"))]
@@ -1811,12 +3906,2277 @@
 ;;
 ;;  ....................
 ;;
+;;	VECTOR OPERATIONS
+;;
+;;  ....................
+
+;; PULP only
+
+(define_mode_iterator VMODEINT          [V2HI V4QI])
+(define_mode_iterator VMODEALL          [V2HI V4QI])
+(define_mode_iterator VMODEALL4         [V4QI])
+(define_mode_iterator VMODEALL2         [V2HI])
+
+(define_mode_attr VINT       [(V2HI "V2HI") (V4QI "V4QI")])
+(define_mode_attr vec_type   [(V2HI "v2hi") (V4QI "v4qi")])
+(define_mode_attr vec_size   [(V2HI "h")    (V4QI "b")])
+
+(define_mode_attr vec_scalar          [(V2HI "SI")  (V4QI "SI")])
+(define_mode_attr vec_scalar_int      [(V2HI "SI")  (V4QI "SI")])
+(define_mode_attr vec_scalar_elmt     [(V2HI "HI")  (V4QI "QI")])
+
+;; Vector Init
+
+(define_insn "vec_init<VMODEALL:mode>_internal"
+ [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+       (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,vIsdc"))
+  )
+ ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.add.sc.<vec_size>\t%0,x0,%1 # Vector insert Scalar Reg
+  pv.add.sci.<vec_size>\t%0,x0,%W1 # Vector insert Scalar Imm"
+
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_expand "vec_init<VMODEALL:mode>"
+  [(match_operand:VMODEALL 0 "register_operand" "")
+   (match_operand 1 "" "")]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  riscv_expand_vector_init (operands[0], operands[1]);
+  DONE;
+}
+)
+
+;; Vector Packing
+
+(define_insn "vec_pack_v2hi"
+  [(set	(match_operand:V2HI 0 "register_operand" "=r")
+	(vec_concat:V2HI
+		(match_operand:HI 1 "register_operand" "r")
+		(match_operand:HI 2 "register_operand" "r")
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.pack.h \t%0,%2,%1 \t# Vector pack of 2 shorts"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "vec_pack_v4qi_lo"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+	(vec_merge:V4QI
+		(vec_concat:V4QI
+			(vec_concat:V2QI
+				(match_operand:QI 1 "register_operand" "r")
+				(match_operand:QI 2 "register_operand" "r")
+			)
+			(const_vector:V2QI [(const_int 0) (const_int 0)])
+		)
+          	(match_operand:V4QI 3 "register_operand" "0")
+		(const_int 3)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.packlo.b \t%0,%2,%1 \t# Vector pack of 2 bytes, low part"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "vec_pack_v4qi_lo_first"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+	(vec_merge:V4QI
+		(vec_concat:V4QI
+			(vec_concat:V2QI
+				(match_operand:QI 1 "register_operand" "r")
+				(match_operand:QI 2 "register_operand" "r")
+			)
+			(const_vector:V2QI [(const_int 0) (const_int 0)])
+		)
+	  	(const_vector:V4QI [(const_int 0) (const_int 0) (const_int 0) (const_int 0)])
+		(const_int 3)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.packlo.b \t%0,%2,%1 \t# Vector pack of 2 bytes (first), low part"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "vec_pack_v4qi_hi"
+  [(set	(match_operand:V4QI 0 "register_operand" "=r")
+	(vec_merge:V4QI
+		(vec_concat:V4QI
+			(const_vector:V2QI [(const_int 0) (const_int 0)])
+			(vec_concat:V2QI
+				(match_operand:QI 1 "register_operand" "r")
+				(match_operand:QI 2 "register_operand" "r")
+			)
+		)
+          	(match_operand:V4QI 3 "register_operand" "0")
+		(const_int 12)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.packhi.b \t%0,%2,%1 \t# Vector pack of 2 bytes, high part"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "vec_pack_v4qi_hi_first"
+  [(set	(match_operand:V4QI 0 "register_operand" "=r")
+	(vec_merge:V4QI
+		(vec_concat:V4QI
+			(const_vector:V2QI [(const_int 0) (const_int 0)])
+			(vec_concat:V2QI
+				(match_operand:QI 1 "register_operand" "r")
+				(match_operand:QI 2 "register_operand" "r")
+			)
+		)
+	  	(const_vector:V4QI [(const_int 0) (const_int 0) (const_int 0) (const_int 0)])
+		(const_int 12)
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.packhi.b \t%0,%2,%1 \t# Vector pack of 2 bytes (first), high part"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_expand "vec_pack_v4qi"
+  [(match_operand:V4QI 0 "register_operand" "")
+   (match_operand:QI 1 "register_operand" "")
+   (match_operand:QI 2 "register_operand" "")
+   (match_operand:QI 3 "register_operand" "")
+   (match_operand:QI 4 "register_operand" "")
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+{
+	emit_insn (gen_vec_pack_v4qi_lo_first(operands[0], operands[1], operands[2]));
+	emit_insn (gen_vec_pack_v4qi_hi      (operands[0], operands[3], operands[4], operands[0]));
+  DONE;
+})
+
+;; Vector permutation
+
+(define_insn "vec_permv2hi_internal2_1"
+  [(set (match_operand:V2HI 0 "register_operand"               "=r,r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"  "r,r")
+                      (match_operand:V2HI 2 "register_operand"  "1,1")
+                      (match_operand:V2HI 3 "permute_sel_operand" "r,i")
+		     ] UNSPEC_VEC_PERM2)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK)  && riscv_valid_permute_operands (operands[1], operands[2], operands[3]))"
+{
+	switch (which_alternative) {
+		case 0:
+			return "pv.shuffle.h\t%0,%1,%3";
+		case 1:
+			{
+				int Mask=0;
+				rtx xoperands[3];
+				int i;
+
+				xoperands[0] = operands[0]; xoperands[1] = operands[2];
+  				for (i = 0; i < 2; ++i) Mask |= (((INTVAL (XVECEXP (operands[3], 0, i)) & 1))<<(4*i));
+				Mask = Mask & 0x0FF;
+				xoperands[2] = gen_rtx_CONST_INT (SImode, Mask);
+				output_asm_insn("pv.shuffle.sci.h\t%0,%1,%2", xoperands);
+				return "";
+			}
+		default:
+			return "";
+	}
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "vec_permv2hi_internal2"
+  [(set (match_operand:V2HI 0 "register_operand"               "=r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand" "0")
+                      (match_operand:V2HI 2 "register_operand" "r")
+                      (match_operand:V2HI 3 "register_operand" "r")
+		     ] UNSPEC_VEC_PERM3)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.shuffle2.h\t%0,%2,%3 \t# Shuffle2, word"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "vec_permv2hi_int1"
+  [(set (match_operand:V2HI 0 "register_operand"               "=r,r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"  "r,r")
+                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
+		     ] UNSPEC_VEC_PERM1)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+{
+	switch (which_alternative) {
+		case 0:
+			return "pv.shuffle.h\t%0,%1,%2";
+		case 1: {
+				unsigned int Mask=0;
+				rtx xoperands[3];
+				int i;
+
+				xoperands[0] = operands[0]; xoperands[1] = operands[1];
+  				for (i = 0; i < 2; ++i) Mask |= (((INTVAL (XVECEXP (operands[2], 0, i)) & 1))<<(4*i));
+				Mask = Mask & 0x0FF;
+				xoperands[2] = gen_rtx_CONST_INT (SImode, Mask);
+				output_asm_insn("pv.shuffle.sci.h\t%0,%1,%2", xoperands);
+				return "";
+			}
+		default:
+			return "";
+	}
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+/* __GAP8 Start */
+
+(define_insn "vec_permv2hi_low"
+  [(set (match_operand:V2HI 0 "register_operand"                  "=r,r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"    "r,r")
+                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
+                     ] UNSPEC_VEC_PERM4)
+   )
+  ]
+  "((Pulp_Cpu==PULP_GAP8) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.pack.l.h \t%0,%2,%1 \t# Pack2 low"
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "vec_permv2hi_high"
+  [(set (match_operand:V2HI 0 "register_operand"                  "=r,r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"    "r,r")
+                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
+                     ] UNSPEC_VEC_PERM5)
+   )
+  ]
+  "((Pulp_Cpu==PULP_GAP8) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.pack.h.h \t%0,%2,%1 \t# Pack2 high"
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+/* __GAP8 Stop */
+
+(define_expand "vec_permv2hi"
+  [(match_operand:V2HI 0 "register_operand"    "")
+   (match_operand:V2HI 1 "register_operand"    "")
+   (match_operand:V2HI 2 "register_operand"    "")
+   (match_operand:V2HI 3 "permute_sel_operand" "")
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+{
+	if (rtx_equal_p(operands[1], operands[2])) {
+		emit_insn (gen_vec_permv2hi_internal2_1 (operands[0], operands[1], operands[2], operands[3]));
+	} else {
+		/* __GAP8 Start */
+                if ((Pulp_Cpu==PULP_GAP8) && (GET_CODE (operands[3]) == CONST_VECTOR) &&
+                    (INTVAL(XVECEXP (operands[3], 0, 0)) == 0) && (INTVAL(XVECEXP (operands[3], 0, 1)) == 2)) {
+                        emit_insn (gen_vec_permv2hi_low(operands[0], operands[1], operands[2]));
+                } else if ((Pulp_Cpu==PULP_GAP8) && (GET_CODE (operands[3]) == CONST_VECTOR) &&
+                           (INTVAL(XVECEXP (operands[3], 0, 0)) == 1) && (INTVAL(XVECEXP (operands[3], 0, 1)) == 3)) {
+                        emit_insn (gen_vec_permv2hi_high(operands[0], operands[1], operands[2]));
+                } else
+		/* __GAP8 Stop */
+		{
+                        if (GET_CODE (operands[3]) != REG) operands[3] = force_reg (V2HImode, operands[3]);
+                        emit_insn (gen_vec_permv2hi_internal2 (operands[0], operands[1], operands[2], operands[3]));
+                }
+	}
+	DONE;
+}
+)
+
+(define_insn "vec_permv4qi_internal2_1"
+  [(set (match_operand:V4QI 0 "register_operand"               "=r,r")
+        (unspec:V4QI [(match_operand:V4QI 1 "register_operand"  "r,r")
+                      (match_operand:V4QI 2 "register_operand"  "1,1")
+                      (match_operand:V4QI 3 "permute_sel_operand" "r,i")
+		     ] UNSPEC_VEC_PERM2)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK)  && riscv_valid_permute_operands (operands[1], operands[2], operands[3]))"
+{
+	switch (which_alternative) {
+		case 0:
+			return "pv.shuffle.b\t%0,%1,%3";
+		case 1:
+			{
+				int Mask=0;
+				int Sel = INTVAL (XVECEXP (operands[3], 0, 3)) & 3;
+				rtx xoperands[3];
+				int i;
+
+				xoperands[0] = operands[0]; xoperands[1] = operands[2];
+  				for (i = 0; i < 3; ++i) Mask |= (((INTVAL (XVECEXP (operands[3], 0, i)) & 3))<<(2*i));
+				xoperands[2] = gen_rtx_CONST_INT (SImode, Mask);
+				switch (Sel) {
+					case 0: output_asm_insn("pv.shuffleI0.sci.b\t%0,%1,%2", xoperands); break;
+					case 1: output_asm_insn("pv.shuffleI1.sci.b\t%0,%1,%2", xoperands); break;
+					case 2: output_asm_insn("pv.shuffleI2.sci.b\t%0,%1,%2", xoperands); break;
+					case 3: output_asm_insn("pv.shuffleI3.sci.b\t%0,%1,%2", xoperands); break;
+					default:;
+				}
+				return "";
+			}
+		default:
+			return "";
+	}
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "vec_permv4qi_internal2"
+  [(set (match_operand:V4QI 0 "register_operand"               "=r")
+        (unspec:V4QI [(match_operand:V4QI 1 "register_operand" "0")
+                      (match_operand:V4QI 2 "register_operand" "r")
+                      (match_operand:V4QI 3 "register_operand" "r")
+		     ] UNSPEC_VEC_PERM3)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.shuffle2.b\t%0,%2,%3 \t# Shuffle2, bytes"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "vec_permv4qi_int1"
+  [(set (match_operand:V4QI 0 "register_operand"               "=r,r")
+        (unspec:V4QI [(match_operand:V4QI 1 "register_operand"  "r,r")
+                      (match_operand:V4QI 2 "permute_sel_operand" "r,i")
+		     ] UNSPEC_VEC_PERM1)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+{
+	switch (which_alternative) {
+		case 0:
+			return "pv.shuffle.b\t%0,%1,%2";
+		case 1: {
+				int Mask=0;
+				int Sel = INTVAL (XVECEXP (operands[3], 0, 3)) & 3;
+				rtx xoperands[3];
+				int i;
+
+				xoperands[0] = operands[0]; xoperands[1] = operands[1];
+  				for (i = 0; i < 3; ++i) Mask |= (((INTVAL (XVECEXP (operands[2], 0, i)) & 3))<<(2*i));
+				xoperands[2] = gen_rtx_CONST_INT (SImode, Mask);
+				switch (Sel) {
+					case 0: output_asm_insn("pv.shuffleI0.sci.b\t%0,%1,%2", xoperands); break;
+					case 1: output_asm_insn("pv.shuffleI1.sci.b\t%0,%1,%2", xoperands); break;
+					case 2: output_asm_insn("pv.shuffleI2.sci.b\t%0,%1,%2", xoperands); break;
+					case 3: output_asm_insn("pv.shuffleI3.sci.b\t%0,%1,%2", xoperands); break;
+					default:;
+				}
+				return "";
+			}
+		default:
+			return "";
+	}
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_expand "vec_permv4qi"
+  [(match_operand:V4QI 0 "register_operand" "")
+   (match_operand:V4QI 1 "register_operand" "")
+   (match_operand:V4QI 2 "register_operand" "")
+   (match_operand:V4QI 3 "permute_sel_operand" "")
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+{
+	if (rtx_equal_p(operands[1], operands[2])) {
+		emit_insn (gen_vec_permv4qi_internal2_1 (operands[0], operands[1], operands[2], operands[3]));
+	} else {
+		if (GET_CODE (operands[3]) != REG) operands[3] = force_reg (V4QImode, operands[3]);
+		emit_insn (gen_vec_permv4qi_internal2 (operands[0], operands[1], operands[2], operands[3]));
+	}
+
+	DONE;
+}
+)
+
+;; Vector Insert
+(define_insn "vec_set<VMODEALL:mode>_internal"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+        (vec_merge:VMODEALL
+          (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,J"))
+          (match_operand:VMODEALL 3 "register_operand" "0,0")
+          (match_operand:SI 2 "immediate_operand" "i,i")))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  int elt = ffs ((int) INTVAL (operands[2])) - 1;
+  operands[2] = GEN_INT (elt);
+  if (which_alternative == 0) return "pv.insert.<vec_size>\t%0,%1,%2\t # Vect insert";
+  else return "pv.insert.<vec_size>\t%0,x0,%2\t # Vect insert 0";
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "vec_set_first<VMODEALL2:mode>_internal"
+  [(set (match_operand:VMODEALL2 0 "register_operand" "=r,r")
+        (vec_merge:VMODEALL2
+          (vec_duplicate:VMODEALL2 (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,J"))
+	  (const_vector:VMODEALL2 [(const_int 0) (const_int 0)])
+          (match_operand:SI 2 "const_1_operand" "Z,Z")))]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  int elt = ffs ((int) INTVAL (operands[2])) - 1;
+  operands[2] = GEN_INT (elt);
+  if (which_alternative == 0) {
+	return "p.exthz \t%0,%1\t # Vect first insert half, pos 0";
+  } else return "add\t%0,x0,%2\t # Vect first insert half 0, pos 0";
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "vec_set_first<VMODEALL4:mode>_internal"
+  [(set (match_operand:VMODEALL4 0 "register_operand" "=r,r")
+        (vec_merge:VMODEALL4
+          (vec_duplicate:VMODEALL4 (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,J"))
+	  (const_vector:VMODEALL4 [(const_int 0) (const_int 0) (const_int 0) (const_int 0)])
+          (match_operand:SI 2 "const_1_operand" "Z,Z")))]
+ "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  int elt = ffs ((int) INTVAL (operands[2])) - 1;
+
+  operands[2] = GEN_INT (elt);
+  if (which_alternative == 0) {
+	return "and\t%0,%1,0xff\t # Vect first insert byte, pos 0";
+  } else return "add\t%0,x0,%2\t # Vect first insert, pos 0";
+}
+[(set_attr "type" "move,move")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_expand "vec_set_first<VMODEALL:mode>"
+  [(match_operand:VMODEALL 0 "register_operand" "")
+   (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "")
+   (match_operand:SI 2 "immediate_operand" "")]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  HOST_WIDE_INT elem = (HOST_WIDE_INT) 1 << INTVAL (operands[2]);	/* Should always be 1 */
+
+  if ((GET_CODE (operands[1]) == CONST_INT) && (INTVAL(operands[1]) != 0)) {
+	rtx Vect_Zero[4] = {const0_rtx, const0_rtx, const0_rtx, const0_rtx};
+	rtx zero_vect = gen_rtx_CONST_VECTOR (<MODE>mode, gen_rtvec_v (GET_MODE_NUNITS(<MODE>mode), Vect_Zero));
+	emit_insn(gen_mov<mode>_internal(operands[0], zero_vect));
+  	emit_insn (gen_vec_set<mode>_internal (operands[0], operands[1], GEN_INT (elem), operands[0]));
+  } else emit_insn (gen_vec_set_first<mode>_internal (operands[0], operands[1], GEN_INT (elem)));
+  DONE;
+})
+
+(define_expand "vec_set<VMODEALL:mode>"
+  [(match_operand:VMODEALL 0 "register_operand" "")
+   (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "")
+   (match_operand:SI 2 "immediate_operand" "")]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+{
+  HOST_WIDE_INT elem = (HOST_WIDE_INT) 1 << INTVAL (operands[2]);
+  emit_insn (gen_vec_set<mode>_internal (operands[0], operands[1], GEN_INT (elem), operands[0]));
+  DONE;
+})
+
+;; Vector Extract
+
+(define_insn "vec_extract_sext_<SUBDI:mode>_<VMODEALL:mode>"
+  [(set (match_operand:SUBDI 0 "register_operand" "=r")
+        (sign_extend:SUBDI
+          (vec_select:<vec_scalar_elmt>
+             (match_operand:VMODEALL 1 "register_operand" "r")
+             (parallel [(match_operand:SI 2 "immediate_operand" "i")])
+          )
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "pv.extract.<vec_size>\t%0,%1,%2\t # vect extract, with sign ext"
+[(set_attr "type" "move")
+ (set_attr "mode" "<SUBDI:MODE>")]
+)
+
+(define_insn "vec_extract_zext_<SUBDI:mode>_<VMODEALL:mode>"
+  [(set (match_operand:SUBDI 0 "register_operand" "=r")
+        (zero_extend:SUBDI
+          (vec_select:<vec_scalar_elmt>
+             (match_operand:VMODEALL 1 "register_operand" "r")
+             (parallel [(match_operand:SI 2 "immediate_operand" "i")])
+          )
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "pv.extractu.<vec_size>\t%0,%1,%2\t # vect extract, with zero ext"
+[(set_attr "type" "move")
+ (set_attr "mode" "<SUBDI:MODE>")]
+)
+
+(define_insn "vec_extract<VMODEALL:mode>"
+  [(set (match_operand:<vec_scalar_elmt> 0 "register_operand" "=r")
+        (vec_select:<vec_scalar_elmt>
+           (match_operand:VMODEALL 1 "register_operand" "r")
+           (parallel [(match_operand:SI 2 "immediate_operand" "i")])
+        )
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "pv.extract.<vec_size>\t%0,%1,%2\t # vect extract"
+[(set_attr "type" "move")
+ (set_attr "mode" "SI")]
+)
+
+;; Diadic Instructions
+(define_code_iterator vec_op2      	[plus minus smin smax])
+(define_code_iterator vec_op2u      	[umin umax])
+(define_code_iterator vec_op2s     	[lshiftrt ashiftrt ashift])
+(define_code_iterator vec_log2     	[and ior xor])
+(define_code_attr vec_op2_name      	[(plus "add") (minus "sub") (smin "smin") (smax "smax") (mult "mul")])
+(define_code_attr vec_op2u_name      	[(umin "umin") (umax "umax")])
+(define_code_attr vec_op2s_name     	[(lshiftrt "vlshr") (ashiftrt "vashr") (ashift "vashl")])
+(define_code_attr vec_log2_name    	[(and "and") (ior "ior") (xor "exor")])
+(define_code_attr vec_op2_asm_name 	[(plus "add") (minus "sub") (smin "min") (smax "max") (mult "mult")])
+(define_code_attr vec_op2u_asm_name 	[(umin "minu") (umax "maxu")])
+(define_code_attr vec_op2s_asm_name 	[(lshiftrt "srl") (ashiftrt "sra") (ashift "sll")])
+(define_code_attr vec_log2_asm_name 	[(and "and") (ior "or") (xor "xor")])
+
+;;/* __GAP8 Start */
+
+(define_insn "cplx_conjhi2"
+ [(set (match_operand:V2HI 0 "register_operand" "=r")
+       (vec_concat:V2HI
+		(vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+		(neg:HI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+       )
+  )
+ ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.cplxconj.h \t%0,%1\t # Complex conjugate"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplx_conjsi3"
+ [(set (match_operand:V2HI 0 "register_operand" "=r")
+       (vec_concat:V2HI
+		(subreg:HI (match_operand:SI 1 "register_operand" "r") 0)
+		(subreg:HI (neg:SI (match_operand:SI 2 "register_operand" "r")) 0)
+       )
+  )
+ ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.cplxconj.h \t%0,%1\t # Complex conjugate, infered"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "add_div2_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (plus   (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 1) (const_int 1)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.add.h.div2 \t%0,%1,%2\t # Add2>>1 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "add_div2_v4qi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+        (ashiftrt:V4QI
+                (plus   (match_operand:V4QI 1 "register_operand" "r")
+                        (match_operand:V4QI 2 "register_operand" "r")
+                )
+                (const_vector:V4QI [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.add.b.div2 \t%0,%1,%2\t # Add4>>1 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "add_div4_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (plus   (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 2) (const_int 2)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.add.h.div4 \t%0,%1,%2\t # Add2>>2 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "add_div4_v4qi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+        (ashiftrt:V4QI
+                (plus   (match_operand:V4QI 1 "register_operand" "r")
+                        (match_operand:V4QI 2 "register_operand" "r")
+                )
+                (const_vector:V4QI [(const_int 2) (const_int 2) (const_int 2) (const_int 2)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.add.b.div4 \t%0,%1,%2\t # Add4>>2 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sub_div2_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (minus  (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 1) (const_int 1)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.sub.h.div2 \t%0,%1,%2\t # Sub2>>1 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sub_div2_v4qi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+        (ashiftrt:V4QI
+                (minus  (match_operand:V4QI 1 "register_operand" "r")
+                        (match_operand:V4QI 2 "register_operand" "r")
+                )
+                (const_vector:V4QI [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.sub.b.div2 \t%0,%1,%2\t # Sub4>>1 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sub_div4_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (minus  (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 2) (const_int 2)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.sub.h.div4 \t%0,%1,%2\t # Sub2>>2 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sub_div4_v4qi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+        (ashiftrt:V4QI
+                (minus  (match_operand:V4QI 1 "register_operand" "r")
+                        (match_operand:V4QI 2 "register_operand" "r")
+                )
+                (const_vector:V4QI [(const_int 2) (const_int 2) (const_int 2) (const_int 2)])
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.sub.b.div4 \t%0,%1,%2\t # Sub4>>2 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "subrotmj_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (vec_concat:V2HI
+                (subreg:HI
+                        (minus:SI
+                                (sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r")
+                                                               (parallel [(const_int 1)]))
+                                )
+                                (sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "register_operand" "r")
+                                                               (parallel [(const_int 1)]))
+                                )
+                        )
+                        0
+                )
+                (subreg:HI
+                        (minus:SI
+                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 0)])))
+                        )
+                        0
+                )
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.subrotmj.h \t%0,%1,%2"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;;/* __GAP8 Stop */
+
+(define_insn "<vec_op2_name><VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+        (vec_op2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+                          (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIsdc")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.<vec_op2_asm_name>.<vec_size> \t%0,%1,%2\t # Vect Op Vect
+  pv.<vec_op2_asm_name>.sci.<vec_size> \t%0,%1,%W2\t # Vect Op Immediate Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "<vec_op2_name>sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_op2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+			  (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_op2_asm_name>.sc.<vec_size> \t%0,%1,%2\t # Vect Op Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "<vec_op2_name>_swap_sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_op2:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		          (match_operand:VMODEALL 2 "register_operand" "r")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_op2_asm_name>.sc.<vec_size> \t%0,%2,%1\t # Vect Op Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "<vec_op2u_name><VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+        (vec_op2u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+                           (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIusc")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.<vec_op2u_asm_name>.<vec_size> \t%0,%1,%2\t # VectU Op Vect
+  pv.<vec_op2u_asm_name>.sci.<vec_size> \t%0,%1,%w2\t # VectU Op Immediate Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "<vec_op2u_name>sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_op2u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+			   (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_op2u_asm_name>.sc.<vec_size> \t%0,%1,%2\t # VectU Op Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "<vec_op2u_name>_swap_sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_op2u:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		           (match_operand:VMODEALL 2 "register_operand" "r")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_op2u_asm_name>.sc.<vec_size> \t%0,%2,%1\t # VectU Op Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "<vec_op2s_name><VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+        (vec_op2s:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+                           (match_operand:<VINT>   2 "nonmemory_operand" "r,vIsdc")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.<vec_op2s_asm_name>.<vec_size> \t%0,%1,%2\t # Vect Shift Vect
+  pv.<vec_op2s_asm_name>.sci.<vec_size> \t%0,%1,%W2\t # Vect Shift Immediate Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "<vec_op2s_name>sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_op2s:VMODEALL (match_operand:<VINT>   1 "register_operand" "r")
+			   (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_op2s_asm_name>.sc.<vec_size> \t%0,%1,%2\t # Vect Shift Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avg<VMODEALL2:mode>3"
+  [(set (match_operand:VMODEALL2 0 "register_operand" "=r,r")
+	(ashiftrt:VMODEALL2
+		(plus:VMODEALL2 (match_operand:VMODEALL2 1 "register_operand" "r,r")
+			        (match_operand:VMODEALL2 2 "nonmemory_operand" "r,vIsdc"))
+	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.avg.<vec_size> \t%0,%1,%2\t # Vect Avg Vect
+ pv.avg.sci.<vec_size> \t%0,%1,%W2\t # Vect Avg Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+
+(define_insn "avg<VMODEALL4:mode>3"
+  [(set (match_operand:VMODEALL4 0 "register_operand" "=r,r")
+	(ashiftrt:VMODEALL4
+		(plus:VMODEALL4 (match_operand:VMODEALL4 1 "register_operand" "r,r")
+			        (match_operand:VMODEALL4 2 "nonmemory_operand" "r,vIsdc"))
+	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.avg.<vec_size> \t%0,%1,%2\t # Vect Avg Vect
+ pv.avg.sci.<vec_size> \t%0,%1,%W2\t # Vect Avg Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "avgsc<VMODEALL2:mode>3"
+  [(set (match_operand:VMODEALL2 0 "register_operand" "=r")
+	(ashiftrt:VMODEALL2
+        	(plus:VMODEALL2 (match_operand:VMODEALL2 1 "register_operand" "r")
+			        (vec_duplicate:VMODEALL2 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
+	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avg.sc.<vec_size> \t%0,%1,%2\t # Vect Avg Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgsc<VMODEALL4:mode>3"
+  [(set (match_operand:VMODEALL4 0 "register_operand" "=r")
+	(ashiftrt:VMODEALL4
+        	(plus:VMODEALL4 (match_operand:VMODEALL4 1 "register_operand" "r")
+			        (vec_duplicate:VMODEALL4 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
+	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avg.sc.<vec_size> \t%0,%1,%2\t # Vect Avg Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgsc_swap_<VMODEALL2:mode>3"
+  [(set (match_operand:VMODEALL2 0 "register_operand" "=r")
+	(ashiftrt:VMODEALL2
+        	(plus:VMODEALL2 (vec_duplicate:VMODEALL2 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		                (match_operand:VMODEALL2 2 "register_operand" "r"))
+	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avg.sc.<vec_size> \t%0,%2,%1\t # Vect Avg Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgsc_swap_<VMODEALL4:mode>3"
+  [(set (match_operand:VMODEALL4 0 "register_operand" "=r")
+	(ashiftrt:VMODEALL4
+        	(plus:VMODEALL4 (vec_duplicate:VMODEALL4 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		                (match_operand:VMODEALL4 2 "register_operand" "r"))
+	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avg.sc.<vec_size> \t%0,%2,%1\t # Vect Avg Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;; Avg unsigned
+
+(define_insn "avgv2uhi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r,r")
+	(lshiftrt:V2HI
+		(plus:V2HI (match_operand:V2HI 1 "register_operand" "r,r")
+			   (match_operand:V2HI 2 "nonmemory_operand" "r,vIusc"))
+	   	(const_vector:V2HI [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.avgu.h \t%0,%1,%2\t # Vect2 Avgu Vect
+ pv.avgu.sci.h \t%0,%1,%w2\t # Vect2 Avgu Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "avgv4uqi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r,r")
+	(lshiftrt:V4QI
+		(plus:V4QI (match_operand:V4QI 1 "register_operand" "r,r")
+			   (match_operand:V4QI 2 "nonmemory_operand" "r,vIusc"))
+	   	(const_vector:V4QI [(const_int 1) (const_int 1)(const_int 1)(const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.avgu.b \t%0,%1,%2\t # Vect4 Avgu Vect
+ pv.avgu.sci.b \t%0,%1,%w2\t # Vect4 Avgu Scalar"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "avgscv2uhi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(lshiftrt:V2HI
+        	(plus:V2HI (match_operand:V2HI 1 "register_operand" "r")
+			   (vec_duplicate:V2HI (match_operand:HI 2 "register_operand" "r")))
+	   	(const_vector:V2HI [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avgu.sc.h \t%0,%1,%2\t # Vect 2 AvgU Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgscv4uqi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+	(lshiftrt:V4QI
+        	(plus:V4QI (match_operand:V4QI 1 "register_operand" "r")
+			   (vec_duplicate:V4QI (match_operand:QI 2 "register_operand" "r")))
+	   	(const_vector:V4QI [(const_int 1) (const_int 1)(const_int 1)(const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avgu.sc.b \t%0,%1,%2\t # Vect 4 AvgU Scalar"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgsc_swap_v2uhi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(lshiftrt:V2HI
+        	(plus:V2HI (vec_duplicate:V2HI (match_operand:HI 1 "register_operand" "r"))
+		           (match_operand:V2HI 2 "register_operand" "r"))
+	   	(const_vector:V2HI [(const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avgu.sc.h \t%0,%2,%1\t # Vect 2 AvgU Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "avgsc_swap_v4uqi3"
+  [(set (match_operand:V4QI 0 "register_operand" "=r")
+	(lshiftrt:V4QI
+        	(plus:V4QI (vec_duplicate:V4QI (match_operand:QI 1 "register_operand" "r"))
+		           (match_operand:V4QI 2 "register_operand" "r"))
+	   	(const_vector:V4QI [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.avgu.sc.b \t%0,%2,%1\t # Vect 4 AvgU Scalar (swap)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;; Logical Instructions
+
+(define_insn "<vec_log2_name><VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+        (vec_log2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+                           (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIsdc")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.<vec_log2_asm_name>.<vec_size> \t%0,%1,%2\t # Logical Vect Op Vect
+  pv.<vec_log2_asm_name>.sci.<vec_size> \t%0,%1,%W2\t # Logical Vect Op Immediate Scalar"
+[(set_attr "type" "logical,logical")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "<vec_log2_name>sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_log2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+			   (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_log2_asm_name>.sc.<vec_size> \t%0,%1,%2\t # Logical Vect Op Scalar"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "<vec_log2_name>_swap_sc<VMODEALL:mode>3"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (vec_log2:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		           (match_operand:VMODEALL 2 "register_operand" "r")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.<vec_log2_asm_name>.sc.<vec_size> \t%0,%2,%1\t # Logical Vect Op Scalar (swap)"
+[(set_attr "type" "logical")
+ (set_attr "mode" "SI")]
+)
+
+;; Unary instructions
+
+(define_insn "abs<VMODEALL:mode>2"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (abs:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.abs.<vec_size> \t%0,%1\t # Vect abs"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "neg<VMODEALL:mode>2"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+        (neg:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+        )
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sub.<vec_size> \t%0,x0,%1\t # Vect neg"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+/* __GAP8 Start */
+;; Complex product
+
+(define_insn "cplxmulsv2hi"
+  [(set (match_operand:V2HI 0 "register_operand" "=r,r")
+	(vec_concat:V2HI
+		(subreg:HI
+			(ashiftrt:SI
+				(minus:SI
+					(mult:SI
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)]))
+						)
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)]))
+						)
+					)
+					(mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					)
+				)
+				(const_int 15)
+			) 0
+		)
+		(subreg:HI
+			(ashiftrt:SI
+				(plus:SI (mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 0)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					 )
+					 (mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+					 )
+				)
+				(const_int 15)
+			) 0
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"@
+ pv.cplxmul.s \t%0,%1,%2\t # Vect/Vect Cplx signed multiply
+ pv.cplxmul.sci.s \t%0,%1,%W2\t # Vect/ScalImm Cplx signed multiply"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "cplxmulsv2hi_div2"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (vec_concat:V2HI
+                (subreg:HI
+                        (ashiftrt:SI
+                                (minus:SI
+                                        (mult:SI
+                                                (sign_extend:SI
+                                                        (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+                                                )
+                                                (sign_extend:SI
+                                                        (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+                                                )
+                                        )
+                                        (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+                                        )
+                                )
+                                (const_int 16)
+                        ) 0
+                )
+                (subreg:HI
+                        (ashiftrt:SI
+                                (plus:SI (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 0)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+                                         )
+                                         (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+                                         )
+                                )
+                                (const_int 16)
+                        ) 0
+                )
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.cplxmul.s.div2 \t%0,%1,%2\t # Q15 Vect/Vect Cplx signed multiply >> 1"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_div4"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (vec_concat:V2HI
+                (subreg:HI
+                        (ashiftrt:SI
+                                (minus:SI
+                                        (mult:SI
+                                                (sign_extend:SI
+                                                        (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+                                                )
+                                                (sign_extend:SI
+                                                        (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+                                                )
+                                        )
+                                        (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+                                        )
+                                )
+                                (const_int 17)
+                        ) 0
+                )
+                (subreg:HI
+                        (ashiftrt:SI
+                                (plus:SI (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 0)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+                                         )
+                                         (mult:SI
+                                                (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+                                                (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+                                         )
+                                )
+                                (const_int 17)
+                        ) 0
+                )
+        )
+   )
+  ]
+"((Pulp_Cpu==PULP_GAP8) && !TARGET_MASK_NOVECT)"
+"pv.cplxmul.s.div4 \t%0,%1,%2\t # Q15 Vect/Vect Cplx signed multiply >> 2"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;; Viterbi Max
+
+(define_insn "vec_vit_max_v2hi"
+  [(set (match_operand:V2HI 0 "register_operand"               "=r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand" "r")
+                      (match_operand:V2HI 2 "register_operand" "r")
+                     ] UNSPEC_VIT_MAX)
+   )
+   (clobber (reg:SI VIT_REG))
+  ]
+  "((Pulp_Cpu==PULP_GAP8) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.vitop.max \t%0,%1,%2\t # Vect 2 Viterbi max"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;; Viterbi Select
+
+(define_insn "vec_vit_sel_v2hi"
+  [(set (match_operand:V2HI 0 "register_operand"               "=r")
+        (unspec:V2HI [(match_operand:V2HI 1 "register_operand" "r")
+                      (match_operand:V2HI 2 "register_operand" "r")
+                      (reg:SI VIT_REG)
+                     ] UNSPEC_VIT_SEL)
+   )
+  ]
+  "((Pulp_Cpu==PULP_GAP8) && !(TARGET_MASK_NOVECT||TARGET_MASK_NOSHUFFLEPACK))"
+  "pv.vitop.sel \t%0,%1,%2\t # Vect 2 Viterbi select"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+;; Simple dot products
+
+(define_insn "dotpv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(mult:SI
+			(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+			(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+		)
+		(mult:SI (sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			 (sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+  pv.dotsp.h \t%0,%1,%2\t # Vect 2 dot product
+  pv.dotsp.sci.h \t%0,%1,%W2\t # Vect/Imm 2 dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "dotspscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(mult:SI
+			(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+			(sign_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+		)
+		(mult:SI
+			(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			(sign_extend:SI (subreg:HI (match_dup 2) 0))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotsp.sc.h \t%0,%1,%2\t # Vect/Scalar reg 2 signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "reduc_plus_scal_v2hi"
+  [(set (match_operand:HI 0 "register_operand" "=r")
+	(plus:HI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+		 (vec_select:HI (match_dup 1) (parallel [(const_int 1)]))
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotsp.sci.h \t%0,%1,1\t # Vect 2 Sum of elements (reduction)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotupv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+			(zero_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIusc") (parallel [(const_int 0)])))
+		)
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			(zero_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.dotup.h \t%0,%1,%2\t # Vect 2 unsigned dot product
+ pv.dotup.sci.h \t%0,%1,%w2\t # Vect/Imm 2 unsigned dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "dotupscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+			(zero_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+		)
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			(zero_extend:SI (subreg:HI (match_dup 2) 0))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotup.sc.h \t%0,%1,%2\t # Vect/Scalar reg 2 unssigned dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotuspv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+			(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+		)
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.dotusp.h \t%0,%1,%2\t # Vect 2 unsigned/signed dot product
+ pv.dotusp.sci.h \t%0,%1,%W2\t # Vect/Imm 2 unsigned/signed dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "dotuspscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+			(sign_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+		)
+		(mult:SI
+			(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+			(sign_extend:SI (subreg:HI (match_dup 2) 0))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotusp.sc.h \t%0,%1,%2\t # Vect/Scalar reg 2 unsigned/signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotpv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(sign_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.dotsp.b \t%0,%1,%2\t # Vect 4 dot product
+ pv.dotsp.sci.b \t%0,%1,%W2\t # Vect/Imm 4 dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "reduc_plus_scal_v4qi"
+  [(set (match_operand:QI 0 "register_operand" "=r")
+	(plus:QI
+		(plus:QI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)]))
+			 (vec_select:QI (match_dup 1) (parallel [(const_int 1)]))
+		)
+		(plus:QI (vec_select:QI (match_dup 1) (parallel [(const_int 2)]))
+			 (vec_select:QI (match_dup 1) (parallel [(const_int 3)]))
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotsp.sci.b \t%0,%1,1\t # Vect 4 sum of elements (reduction)"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotspscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(sign_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotsp.sc.b \t%0,%1,%2\t # Vect/Scalar reg 4 dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotupv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(zero_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIusc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.dotup.b \t%0,%1,%2\t # Vect 4 unsigned dot product
+ pv.dotup.sci.b \t%0,%1,%w2\t # Vect/Imm 4 unsigned dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "dotupscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(zero_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(zero_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(zero_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(zero_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotup.sc.b \t%0,%1,%2\t # Vect/Scalar reg 4 unsigned dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "dotuspv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(sign_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.dotusp.b \t%0,%1,%2\t # Vect 4 unsigned/signed dot product
+ pv.dotusp.sci.b \t%0,%1,%W2\t # Vect/Imm 4 unsigned/signed dot product"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "dotuspscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(sign_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+				(sign_extend:SI (subreg:QI (match_dup 2) 0))
+			)
+		)
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.dotusp.sc.b \t%0,%1,%2\t # Vect/Scalar reg 4 unsigned/signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;; Dot products with accumulation
+
+(define_insn "sdot_prodv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotsp.h \t%0,%1,%2\t # Accumulation of 2 half dot products Vect/Vect
+ pv.sdotsp.sci.h \t%0,%1,%W2\t # Accumulation of 2 half dot products vect/Imm"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "sdotspscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(sign_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (subreg:HI (match_dup 2) 0))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotsp.sc.h \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 2 signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "udot_prodv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(zero_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIusc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(zero_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotup.h \t%0,%1,%2\t # Accumulation of 2 half unsigned dot products Vect/Vect
+ pv.sdotup.sci.h \t%0,%1,%w2\t # Accumulation of 2 half unsigned dot products Vect/Imm"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "sdotupscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(zero_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(zero_extend:SI (subreg:HI (match_dup 2) 0))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotup.sc.h \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 2 unsigned dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sdotuspv2hi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+				(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "nonmemory_operand" "r,vIusc") (parallel [(const_int 0)])))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotusp.h \t%0,%1,%2\t # Accumulation of 2 half unsigned/signed dot products Vect/Vect
+ pv.sdotusp.sci.h \t%0,%1,%W2\t # Accumulation of 2 half unsigned/signed dot products Vect/Imm"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "sdotuspscv2hi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+				(sign_extend:SI (subreg:HI (match_operand:SI 2 "register_operand" "r") 0))
+			)
+			(mult:SI
+				(zero_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+				(sign_extend:SI (subreg:HI (match_dup 2) 0))
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotusp.sc.h \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 2 unsigned/signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sdot_prodv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+					(sign_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+				)
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+				)
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotsp.b \t%0,%1,%2\t # Accumulation of 4 byte dot products Vect/Vect
+ pv.sdotsp.sci.b \t%0,%1,%W2\t # Accumulation of 4 byte dot products Vect/Imm"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "sdotspscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+					(sign_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+				)
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+				(mult:SI
+					(sign_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotsp.sc.b \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 4 dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "udot_prodv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+					(zero_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIusc") (parallel [(const_int 0)])))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(zero_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotup.b \t%0,%1,%2\t # Accumulation of 4 byte unsigned dot products Vect/Vect
+ pv.sdotup.sci.b \t%0,%1,%w2\t # Accumulation of 4 byte unsigned dot products Vect/Imm"
+[(set_attr "type" "arith,arith")
+ (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "sdotupscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+					(zero_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(zero_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(zero_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(zero_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotup.sc.b \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 4 unsigned dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sdotuspv4qi"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r,r") (parallel [(const_int 0)])))
+					(sign_extend:SI (vec_select:QI (match_operand:V4QI 2 "nonmemory_operand" "r,vIsdc") (parallel [(const_int 0)])))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 1)])))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 2)])))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(sign_extend:SI (vec_select:QI (match_dup 2) (parallel [(const_int 3)])))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0,0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"@
+ pv.sdotusp.b \t%0,%1,%2\t # Accumulation of 4 byte unsigned/signed dot products Vect/Vect
+ pv.sdotusp.sci.b \t%0,%1,%W2\t # Accumulation of 4 byte unsigned/signed dot products Vect/Imm"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "sdotuspscv4qi_le"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(plus:SI
+		(plus:SI
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_operand:V4QI 1 "register_operand" "r") (parallel [(const_int 0)])))
+					(sign_extend:SI (subreg:QI (match_operand:SI 2 "register_operand" "r") 0))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 1)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+			(plus:SI
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 2)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+				(mult:SI
+					(zero_extend:SI (vec_select:QI (match_dup 1) (parallel [(const_int 3)])))
+					(sign_extend:SI (subreg:QI (match_dup 2) 0))
+				)
+			)
+		)
+		(match_operand:SI 3 "register_operand" "0")
+	)
+   )
+  ]
+"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+"pv.sdotusp.sc.b \t%0,%1,%2\t # Accumulation of Vect/Scalar reg 4 unsigned/signed dot product"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+;;
+;;  ....................
+;;
+;;	VECTOR COMPARISONS
+;;
+;;  ....................
+
+;; Vector compare
+(define_code_iterator vec_cmp_op      		[eq ne le lt ge gt gtu ltu geu leu])
+(define_code_iterator vec_cmp_op_s     		[eq ne le lt ge gt])
+(define_code_iterator vec_cmp_op_u     		[gtu ltu geu leu])
+
+(define_code_attr vec_cmp_op_name  		[(eq "eq") (ne "ne") (gt "gt") (lt "lt") (ge "ge") (le "le") (gtu "gtu") (ltu "ltu") (geu "geu") (leu "leu")])
+(define_code_attr vec_cmp_scal_imm_pref 	[(eq  "W") (ne  "W") (gt  "W") (lt  "W") (ge  "W") (le  "W") (gtu   "w") (ltu   "w") (geu   "w") (leu   "w")])
+(define_code_attr vec_cmp_scal_imm_sign 	[(eq  "s") (ne  "s") (gt  "s") (lt  "s") (ge  "s") (le  "s") (gtu   "u") (ltu   "u") (geu   "u") (leu   "u")])
+(define_code_attr vec_cmp_swap_op_name 		[(eq "eq") (ne "ne") (gt "lt") (lt "gt") (ge "le") (le "ge") (gtu "ltu") (ltu "gtu") (geu "leu") (leu "geu")])
+
+;; Straight Vector Comparisons Vect/Vect,  Vect/ScalarReg,  Vect/ScalarImm
+
+(define_insn "cmp<VMODEALL:vec_type>_<vec_cmp_op_name>"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+	(vec_cmp_op_s:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+			     (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIsdc")
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "@
+  pv.cmp<vec_cmp_op_name>.<VMODEALL:vec_size>\t%0,%1,%2 # cmp vect op
+  pv.cmp<vec_cmp_op_name>.sci.<VMODEALL:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
+  [(set_attr "type" "arith,arith")
+   (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "cmp<VMODEALL:vec_type>_<vec_cmp_op_name>"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
+	(vec_cmp_op_u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+			     (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIusc")
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "@
+  pv.cmp<vec_cmp_op_name>.<VMODEALL:vec_size>\t%0,%1,%2 # cmp vect op
+  pv.cmp<vec_cmp_op_name>.sci.<VMODEALL:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
+  [(set_attr "type" "arith,arith")
+   (set_attr "mode" "SI,SI")]
+)
+
+(define_insn "cmp<VMODEALL:vec_type>_sc<vec_cmp_op_name>"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+	(vec_cmp_op:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+			     (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "pv.cmp<vec_cmp_op_name>.sc.<VMODEALL:vec_size>\t%0,%1,%2 # cmp vect/scalar op"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "SI")]
+)
+
+(define_insn "cmp_swap_<VMODEALL:vec_type>_sc<vec_cmp_op_name>"
+  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
+	(vec_cmp_op:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+			     (match_operand:VMODEALL 2 "register_operand" "r")
+	)
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "pv.cmp<vec_cmp_swap_op_name>.sc.<VMODEALL:vec_size>\t%0,%2,%1 # cmp (swap) vect/scalar op"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "SI")]
+)
+
+;; vcond expansion into vector comparisons
+
+(define_expand "vcond<mode><mode>"
+  [(parallel [
+     (set (match_operand:VMODEALL 0 "register_operand" "")
+          (if_then_else:VMODEALL
+		(match_operator 3 "vec_comparison_operator"
+            		[(match_operand:VMODEALL 4 "register_operand" "")
+             		 (match_operand:VMODEALL 5 "nonmemory_operand" "")]
+		)
+		(match_operand:VMODEALL 1 "nonmemory_operand" "")
+		(match_operand:VMODEALL 2 "nonmemory_operand" "")
+	  )
+     )
+     (clobber (match_scratch:VMODEALL 6 ""))
+    ]
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  {
+	bool scalar_reg;
+	bool simple_form = (riscv_replicated_const_vector(operands[1], -1, -1) && riscv_replicated_const_vector(operands[2], 0, 0));
+	rtx target;
+
+	/* Simple form: OP1=-1, OP2=0  OP0 = (OP1 & M) | (OP2 & ^M) where M=CmpOP3(OP4, OP5)  ==> Strictly equivalent to CmpOP3 output */
+	/* Non simple form, need to fully implement OP0 = (OP1 & M) | (OP2 & ^M) */
+	/* Scratch = CmpOP3(OP4, OP5)
+	   O0      = Scratch & O1	Get True part
+	   Scratch = Scratch ^ Scratch  Toggle mask
+	   Scratch = Scratch & Scratch	Get false part
+	   O0      = O0 | Scratch	Merge both parts
+        */
+
+	if (simple_form) target = operands[0];
+	else {
+		rtx reg = gen_reg_rtx (<MODE>mode);
+		target = operands[6] = reg;
+	}
+
+	if (GET_CODE(operands[4]) == VEC_DUPLICATE) {
+		rtx tmp = operands[4];
+		operands[4] = operands[5]; operands[5] = tmp;
+		PUT_CODE(operands[3], swap_condition(GET_CODE(operands[3])));
+	}
+	scalar_reg = ((GET_CODE(operands[5]) == VEC_DUPLICATE) && !riscv_replicated_const_vector(XEXP(operands[5], 0), 0, 0));
+	switch (GET_CODE(operands[3])) {
+		case EQ:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_sceq(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_eq(target, operands[4], operands[5]));
+			break;
+		case NE:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scne(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_ne(target, operands[4], operands[5]));
+			break;
+		case LT:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_sclt(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_lt(target, operands[4], operands[5]));
+			break;
+		case LE:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scle(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_le(target, operands[4], operands[5]));
+			break;
+		case GT:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scgt(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_gt(target, operands[4], operands[5]));
+			break;
+		case GE:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scge(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_ge(target, operands[4], operands[5]));
+			break;
+		default: abort();
+	}
+	if (!simple_form) {
+  		rtx Vect_m1[4] = {constm1_rtx, constm1_rtx, constm1_rtx, constm1_rtx};
+		rtx m1_vect = gen_rtx_CONST_VECTOR (<MODE>mode, gen_rtvec_v (GET_MODE_NUNITS(<MODE>mode), Vect_m1));
+
+		emit_insn( gen_and<vec_type>3(operands[0], target, operands[1]));
+		emit_insn(gen_exor<vec_type>3(target,      target, m1_vect));
+		emit_insn( gen_and<vec_type>3(target,      target, operands[2]));
+		emit_insn( gen_ior<vec_type>3(operands[0], target, operands[0]));
+	}
+	DONE;
+  }
+)
+
+;; vcond/vcondu
+
+(define_expand "vcondu<mode><mode>"
+  [(parallel [
+     (set (match_operand:VMODEALL 0 "register_operand" "")
+          (if_then_else:VMODEALL
+		(match_operator 3 "vec_comparison_operator"
+            		[(match_operand:VMODEALL 4 "register_operand" "")
+             		 (match_operand:VMODEALL 5 "nonmemory_operand" "")]
+		)
+		(match_operand:VMODEALL 1 "nonmemory_operand" "")
+		(match_operand:VMODEALL 2 "nonmemory_operand" "")
+	  )
+     )
+     (clobber (match_scratch:VMODEALL 6 ""))
+    ]
+   )
+  ]
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  {
+	bool scalar_reg;
+	bool simple_form = (riscv_replicated_const_vector(operands[1], -1, -1) && riscv_replicated_const_vector(operands[2], 0, 0));
+	rtx target;
+
+	/* Simple form: OP1=-1, OP2=0  OP0 = (OP1 & M) | (OP2 & ^M) where M=CmpOP3(OP4, OP5)  ==> Strictly equivalent to CmpOP3 output */
+	/* Non simple form, need to fully implement OP0 = (OP1 & M) | (OP2 & ^M) */
+	/* Scratch = CmpOP3(OP4, OP5)
+	   O0      = Scratch & O1	Get True part
+	   Scratch = Scratch ^ Scratch  Toggle mask
+	   Scratch = Scratch & Scratch	Get false part
+	   O0      = O0 | Scratch	Merge both parts
+        */
+
+	if (simple_form) target = operands[0];
+	else {
+		rtx reg = gen_reg_rtx (<MODE>mode);
+		target = operands[6] = reg;
+	}
+
+	if (GET_CODE(operands[4]) == VEC_DUPLICATE) {
+		rtx tmp = operands[4];
+		operands[4] = operands[5]; operands[5] = tmp;
+		PUT_CODE(operands[3], swap_condition(GET_CODE(operands[3])));
+	}
+	scalar_reg = ((GET_CODE(operands[5]) == VEC_DUPLICATE) && !riscv_replicated_const_vector(XEXP(operands[5], 0), 0, 0));
+	switch (GET_CODE(operands[3])) {
+		case EQ:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_sceq(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_eq(target, operands[4], operands[5]));
+			break;
+		case NE:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scne(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_ne(target, operands[4], operands[5]));
+			break;
+		case LT:
+		case LTU:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scltu(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_ltu(target, operands[4], operands[5]));
+			break;
+		case LE:
+		case LEU:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scleu(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_leu(target, operands[4], operands[5]));
+			break;
+		case GT:
+		case GTU:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scgtu(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_gtu(target, operands[4], operands[5]));
+			break;
+		case GE:
+		case GEU:
+			if (scalar_reg) emit_insn (gen_cmp<mode>_scgeu(target, operands[4], operands[5]));
+			else		emit_insn (gen_cmp<mode>_geu(target, operands[4], operands[5]));
+			break;
+		default: abort();
+	}
+	if (!simple_form) {
+  		rtx Vect_m1[4] = {constm1_rtx, constm1_rtx, constm1_rtx, constm1_rtx};
+		rtx m1_vect = gen_rtx_CONST_VECTOR (<MODE>mode, gen_rtvec_v (GET_MODE_NUNITS(<MODE>mode), Vect_m1));
+
+		emit_insn( gen_and<vec_type>3(operands[0], target, operands[1]));
+		emit_insn(gen_exor<vec_type>3(target,      target, m1_vect));
+		emit_insn( gen_and<vec_type>3(target,      target, operands[2]));
+		emit_insn( gen_ior<vec_type>3(operands[0], target, operands[0]));
+	}
+	DONE;
+  }
+)
+
+
+;;
+;;  ....................
+;;
 ;;	CONDITIONAL BRANCHES
 ;;
 ;;  ....................
 
 ;; Conditional branches
 
+;; TODO: PULP patches this to order_operator_wo_eq_ne
 (define_insn "*branch<mode>"
   [(set (pc)
 	(if_then_else
@@ -1829,6 +6189,28 @@
   "b%C1\t%2,%z3,%0"
   [(set_attr "type" "branch")
    (set_attr "mode" "none")])
+
+;; TODO: PULP branches logic is mssing
+;; (define_insn "*branch_order_eq_ne<mode>"
+;;   [(set (pc)
+;;         (if_then_else
+;;          (match_operator 1 "order_operator_eq_ne"
+;;                  [(match_operand:GPR 2 "register_operand" "r")
+;;                   (match_operand:GPR 3 "reg_or_imm5_operand" "rJYM")])
+;;          (label_ref (match_operand 0 "" ""))
+;;          (pc)))]
+;;   ""
+;; {
+;;   if (GET_CODE (operands[3]) == CONST_INT) {
+;;     if ((INTVAL(operands[3]) != 0) && (INTVAL(operands[3])>=-16) && (INTVAL(operands[3])<=15)) {
+;;         return "p.b%C1imm\t%2,%3,%0";
+;;     } else return "b%C1z\t%2,%0";
+;;   } return "b%C1\t%2,%3,%0";
+;; }
+;;   [(set_attr "type" "branch")
+;;    (set_attr "mode" "none")])
+
+
 
 ;; Patterns for implementations that optimize short forward branches.
 
@@ -2090,6 +6472,27 @@
   [(set_attr "type" "slt")
    (set_attr "mode" "<MODE>")])
 
+;; PULP only
+
+(define_insn "*slet<u>_sisi"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (any_le:SI (match_operand:SI 1 "register_operand" "r")
+                   (match_operand:SI 2 "register_operand" "r")))]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOSLET)"
+  "p.slet<u>\t%0,%1,%2"
+  [(set_attr "type" "slt")
+   (set_attr "mode" "SI")])
+
+(define_insn "*sget<u>_sisi"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (any_ge:SI (match_operand:SI 1 "register_operand" "r")
+                   (match_operand:SI 2 "register_operand" "r")))]
+  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOSLET)"
+  "p.slet<u>\t%0,%2,%1"
+  [(set_attr "type" "slt")
+   (set_attr "mode" "SI")])
+
+
 ;;
 ;;  ....................
 ;;
@@ -2221,6 +6624,41 @@
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")])
 
+(define_insn "simple_it_return"
+  [(return)]
+  ""
+  "eret"
+  [(set_attr "type"     "jump")
+   (set_attr "mode"     "none")])
+
+(define_insn "simple_itu_return"
+  [(unspec [(return)] UNSPEC_ITU)]
+  ""
+  "uret"
+  [(set_attr "type"     "jump")
+   (set_attr "mode"     "none")])
+
+(define_insn "simple_its_return"
+  [(unspec [(return)] UNSPEC_ITS)]
+  ""
+  "sret"
+  [(set_attr "type"     "jump")
+   (set_attr "mode"     "none")])
+
+(define_insn "simple_ith_return"
+  [(unspec [(return)] UNSPEC_ITH)]
+  "(Pulp_Cpu>=PULP_V2)"
+  "hret"
+  [(set_attr "type"     "jump")
+   (set_attr "mode"     "none")])
+
+(define_insn "simple_itm_return"
+  [(unspec [(return)] UNSPEC_ITM)]
+  ""
+  "mret"
+  [(set_attr "type"     "jump")
+   (set_attr "mode"     "none")])
+
 ;; This is used in compiling the unwind routines.
 (define_expand "eh_return"
   [(use (match_operand 0 "general_operand"))]
@@ -2237,6 +6675,164 @@
   emit_barrier ();
   DONE;
 })
+
+;; PULP only
+;; Hardware loops
+;;
+
+(define_insn "set_hwloop_lpstart"
+ [(set (match_operand:SI 0 "ls_register_operand" "=u")
+       (label_ref (match_operand 1 "" ""))
+  )
+  (use (match_operand:SI 2 "immediate_operand" "I"))
+ ]
+ ""
+ "lp.starti\tx%2,%1\t # loop setup, start set"
+ [(set_attr "type" "move")
+  (set_attr "mode" "SI")]
+)
+
+(define_insn "set_hwloop_lpend"
+ [(set (match_operand:SI 0 "le_register_operand" "=t")
+       (label_ref (match_operand 1 "" ""))
+  )
+  (use (match_operand:SI 2 "immediate_operand" "I"))
+ ]
+ ""
+ "lp.endi \tx%2,(%1)\t # loop setup, end set"
+ [(set_attr "type" "move")
+  (set_attr "mode" "SI")]
+)
+
+(define_insn "set_hwloop_lc"
+ [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
+       (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
+  (use (match_operand:SI 2 "immediate_operand" "I,I"))
+ ]
+ ""
+ "@
+  lp.count  \tx%2,%1\t # loop setup, lc set
+  lp.counti \tx%2,%1\t # loop setup, lc set"
+ [(set_attr "type" "move,move")
+  (set_attr "mode" "SI")]
+)
+
+(define_insn "set_hwloop_lc_le"
+ [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
+       (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
+  (set (match_operand:SI 2 "le_register_operand" "=t,t")
+       (label_ref (match_operand 3 "" "")))
+  (use (match_operand:SI 4 "immediate_operand" "I,I"))
+ ]
+ ""
+ "@
+  lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set
+  lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set"
+ [(set_attr "type" "move,move")
+  (set_attr "mode" "SI")]
+)
+
+(define_insn "hw_loop_prolog"
+ [(set (match_operand:SI 0 "register_operand" "=r")
+       (unspec_volatile: SI [(match_operand:SI 1 "immediate_operand" "I")] UNSPECV_ALLOC))
+ ]
+ ""
+ " # HW Loop prolog"
+ [(set_attr "type" "move")
+  (set_attr "mode" "SI")]
+)
+
+(define_insn "zero_cost_loop_end"
+   [(set (pc)
+        (if_then_else (ne (match_operand:SI 2 "nonimmediate_operand" "0,0")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "nonimmediate_operand" "=r,m")
+        (plus (match_dup 2)
+              (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+   (clobber (match_scratch:SI 3 "=X,&r"))]
+  "(Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP && optimize"
+  "#"
+  [(set_attr "length" "0")]
+;;  [(set_attr "type"   "branch")
+;;   (set_attr "mode"   "none")]
+)
+
+(define_split
+  [(set (pc)
+        (if_then_else (ne (match_operand:SI 2 "nonimmediate_operand" "")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "nonimmediate_operand" "")
+        (plus:SI (match_dup 2)
+                 (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+   (clobber (match_scratch 3))]
+  "(Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP && reload_completed"
+  [(const_int 0)]
+{
+  if (!REG_P (operands[0]))
+    {
+      rtx test;
+
+      /* Fallback into a normal conditional branch insn.  */
+      emit_move_insn (operands[3], operands[0]);
+      emit_insn (gen_addsi3 (operands[3], operands[3], constm1_rtx));
+      emit_move_insn (operands[0], operands[3]);
+      test = gen_rtx_NE (VOIDmode, operands[3], const0_rtx);
+      emit_jump_insn (gen_cbranchsi4 (test, operands[3],
+                                      const0_rtx, operands[1]));
+    }
+  else
+    {
+      emit_jump_insn (gen_loop_end (operands[0], operands[1], operands[2]));
+    }
+
+  DONE;
+})
+
+
+
+
+;; operand 0 is the loop count pseudo register
+;; operand 1 is the label to jump to at the top of the loop
+(define_expand "doloop_end"
+  [(parallel [(set (pc) (if_then_else
+                          (ne (match_operand:SI 0 "" "")
+                              (const_int 1))
+                          (label_ref (match_operand 1 "" ""))
+                          (pc)))
+              (set (match_dup 0) (plus:SI (match_dup 0) (const_int -1)))
+              (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+              (clobber (match_dup 2))
+            ])]
+  ""
+{
+  /* The loop optimizer doesn't check the predicates... */
+  if (GET_MODE (operands[0]) != SImode)
+    FAIL;
+  riscv_hardware_loop ();
+  operands[2]= gen_rtx_SCRATCH(SImode);
+})
+
+(define_insn "loop_end"
+  [(set (pc)
+        (if_then_else (ne (match_operand:SI 2 "register_operand" "0")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "register_operand" "=r") (plus (match_dup 2) (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)]
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "/* loop end %0 %l1 */ "
+  [(set_attr "length" "0")]
+;; [(set_attr "type" "branch")
+;;  (set_attr "mode" "none")
+;; ]
+)
 
 ;; Clobber the return address on the stack.  We can't expand this
 ;; until we know where it will be put in the stack frame.
@@ -2399,6 +6995,15 @@
   "nop"
   [(set_attr "type"	"nop")
    (set_attr "mode"	"none")])
+
+;; PULP only
+;; A nop which stays there when emitted.
+(define_insn "forced_nop"
+  [(unspec [(const_int 0)] UNSPEC_NOP)]
+  ""
+  "nop"
+  [(set_attr "type"     "nop")
+   (set_attr "mode"     "none")])
 
 (define_insn "trap"
   [(trap_if (const_int 1) (const_int 0))]

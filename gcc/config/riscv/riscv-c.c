@@ -98,4 +98,11 @@ riscv_cpu_cpp_builtins (cpp_reader *pfile)
       builtin_define ("__riscv_cmodel_pic");
       break;
     }
+
+  if (Pulp_Cpu>=PULP_V0)
+    {
+      builtin_define ("__pulp__");
+      builtin_define ("__pulp");
+      builtin_define ("_pulp");
+    }
 }
