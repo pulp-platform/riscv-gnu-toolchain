@@ -188,7 +188,7 @@ static int CheckBuiltin(int Code, int BuiltinIndex, struct ExtraBuiltinImmArg *E
    riscv_builtin_avail_.  */
 
 #define RISCV_BUILTIN(INSN, NAME, BUILTIN_TYPE, FUNCTION_TYPE, AVAIL, CHECK)    \
-  { CODE_FOR_ ## INSN, "__builtin_riscv_" NAME,                         \
+  { CODE_FOR_riscv_ ## INSN, "__builtin_riscv_" NAME,                         \
     BUILTIN_TYPE, FUNCTION_TYPE, riscv_builtin_avail_ ## AVAIL , CHECK },
 
 #define RISCV_BUILTIN1(INSN, NAME, BUILTIN_TYPE, FUNCTION_TYPE, AVAIL, CHECK)   \
@@ -218,7 +218,18 @@ static int CheckBuiltin(int Code, int BuiltinIndex, struct ExtraBuiltinImmArg *E
 #define DIRECT_NO_TARGET_BUILTIN1(INSN, NAME, FUNCTION_TYPE, AVAIL, CHECK)                      \
   RISCV_BUILTIN1 (INSN, #NAME, RISCV_BUILTIN_DIRECT_NO_TARGET, FUNCTION_TYPE, AVAIL, CHECK)
 
+/* Argument types.  */
+#define RISCV_ATYPE_VOID void_type_node
+#define RISCV_ATYPE_USI unsigned_intSI_type_node
+
+/* RISCV_FTYPE_ATYPESN takes N RISCV_FTYPES-like type codes and lists
+   their associated RISCV_ATYPEs.  */
+#define RISCV_FTYPE_ATYPES1(A, B) \
+  RISCV_ATYPE_##A, RISCV_ATYPE_##B
+
 static const struct riscv_builtin_description riscv_builtins[] = {
+  DIRECT_BUILTIN (frflags, RISCV_USI_FTYPE_VOID, hard_float, NULL)
+  DIRECT_NO_TARGET_BUILTIN (fsflags, RISCV_VOID_FTYPE_USI, hard_float, NULL)
 #include "pulp-builtins.def"
 };
 

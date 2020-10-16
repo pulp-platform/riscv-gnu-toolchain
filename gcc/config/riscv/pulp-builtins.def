@@ -37,7 +37,7 @@ Currently these macros are used in 2 contexts:
 */
 
 
-  DIRECT_NO_TARGET_BUILTIN (nop, RISCV_VOID_FTYPE_VOID, riscv, NULL)
+  DIRECT_NO_TARGET_BUILTIN1 (nop, nop, RISCV_VOID_FTYPE_VOID, riscv, NULL)
 
   DIRECT_BUILTIN1(fl1si2,           	fl1,        	RISCV_INT_FTYPE_INT,             		pulp_vall, NULL)
   DIRECT_BUILTIN1(ctzsi2,            	ff1,        	RISCV_INT_FTYPE_INT,             		pulp_vall, NULL)
