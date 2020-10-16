@@ -4722,7 +4722,7 @@ riscv_expand_epilogue (int style)
         }
         cfun->machine->contains_call = (!TARGET_MASK_NOHWLOOP && riscv_current_func_contains_call());
         if (cfun->machine->contains_call) {
-                error ("interrupt function contains function calls: %s", current_function_name());
+	        warning (0, "interrupt function contains function calls: %s", current_function_name());
         }
   }
 
