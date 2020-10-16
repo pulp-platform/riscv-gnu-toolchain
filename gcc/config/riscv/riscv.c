@@ -2865,7 +2865,8 @@ static bool riscv_vector_mode_supported_p (enum machine_mode mode)
     case E_V2HImode:
     case E_V4QImode:
     case E_V2QImode:
-      return true;
+      /* TODO: remove this hack, it totally disables vector support! */
+      return false;
     default:
       return false;
     }
