@@ -6472,10 +6472,19 @@ static void riscv_globalize_decl_name (FILE * stream, tree decl)
 void riscv_output_external (FILE *file, tree decl, const char *name)
 
 {
+  /* We output the name if and only if TREE_SYMBOL_REFERENCED is
+     set in order to avoid putting out names that are never really
+     used.  Always output visibility specified in the source.  */
+  if (TREE_SYMBOL_REFERENCED (DECL_ASSEMBLER_NAME (decl))
+      && (DECL_VISIBILITY_SPECIFIED (decl)
+	  || targetm.binds_local_p (decl)))
+    maybe_assemble_visibility (decl);
+
 	gcc_assert (file == asm_out_file);
 	import_export_symbol p = {decl, name};
 	tree attrs;
 
+  /* TODO: get rid of this, we don't support PULP dynamic linking anymore */
   	if (decl) {
 
 		attrs = DECL_ATTRIBUTES (decl);
