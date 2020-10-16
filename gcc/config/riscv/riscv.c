@@ -4244,8 +4244,8 @@ riscv_compute_frame_info (void)
     {
       /* Find out which GPRs we need to save.  */
       for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; regno++)
-	if (riscv_save_reg_p (regno, frame->is_it
-	    || (interrupt_save_t1 && (regno == T1_REGNUM))))
+	if (riscv_save_reg_p (regno, 0/*frame->is_it*/)
+	    || (interrupt_save_t1 && (regno == T1_REGNUM)))
 	  frame->mask |= 1 << (regno - GP_REG_FIRST), num_x_saved++;
 
       /* If this function calls eh_return, we must also save and restore the
