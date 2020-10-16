@@ -597,8 +597,9 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
      macros. Furthermore, we then can add flags for explicitely enable these
      subset of the pulp extension (e.g. xpulpdsp for dsp instructions) */
 
-  if (Pulp_DP_Format == PULP_DP_FORMAT32)
-    *flags |= MASK_MAP_DOUBLE_TO_FLOAT;
+  /* TODO: we don't implement this "feature" */
+  /* if (Pulp_DP_Format == PULP_DP_FORMAT32) */
+  /*   *flags |= MASK_MAP_DOUBLE_TO_FLOAT; */
 
   if (subset_list->lookup("xriscv"))
     {
@@ -642,7 +643,7 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       else if (subset_list->lookup("xpulpv", 2, 0))
 	{
 	  *flags &= ~MASK_MUL;
-	  if (Pulp_DP_Format != PULP_DP_FORMAT32)
+	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
 	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V2)
 	    Pulp_Cpu = PULP_V2;
@@ -653,7 +654,7 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       else if (subset_list->lookup("xpulpv", 3, 0))
 	{
 	  *flags |= MASK_MUL;
-	  if (Pulp_DP_Format != PULP_DP_FORMAT32)
+	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
 	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V3)
 	    Pulp_Cpu = PULP_V3;

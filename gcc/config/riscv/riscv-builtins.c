@@ -39,6 +39,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "stor-layout.h"
 #include "expr.h"
 #include "langhooks.h"
+#include "explow.h"
+#include "riscv-protos.h"
 
 /* Macros to create an enumeration identifier for a function prototype.  */
 #define RISCV_FTYPE_NAME1(A, B) RISCV_##A##_FTYPE_##B

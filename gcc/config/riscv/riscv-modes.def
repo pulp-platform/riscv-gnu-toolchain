@@ -30,9 +30,11 @@ ADJUST_FLOAT_FORMAT (HF, &ieee_half_format);
 
 
 
+/* TODO: PULP makes use of this, how do we port it?
 ADJUST_ALIGNMENT (DF, ((Pulp_DP_Format == PULP_DP_FORMAT64) ? 8 : 4));
 ADJUST_BYTESIZE (DF, ((Pulp_DP_Format == PULP_DP_FORMAT64) ? 8 : 4));
 ADJUST_FLOAT_FORMAT (DF, ((Pulp_DP_Format == PULP_DP_FORMAT64) ? &ieee_double_format : &ieee_single_format));
+*/
 
 
 /* Vector modes.  */

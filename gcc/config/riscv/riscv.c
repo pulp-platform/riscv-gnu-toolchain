@@ -59,7 +59,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "builtins.h"
 #include "predict.h"
 #include "hw-doloop.h"
+#include "cfgrtl.h"
 #include "cfghooks.h"
+#include "cfg.h"
 
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
@@ -2599,8 +2601,8 @@ riscv_expand_conditional_move (rtx dest, rtx cons, rtx alt, rtx_code code,
 void riscv_expand_vector_init(rtx target, rtx vals)
 
 {
-	enum machine_mode mode = GET_MODE (target);
-	enum machine_mode inner_mode = GET_MODE_INNER (mode);
+	machine_mode mode = GET_MODE (target);
+	machine_mode inner_mode = GET_MODE_INNER (mode);
 	int n_elts = GET_MODE_NUNITS (mode);
 	int n_var = 0;
 	bool all_same = true;
@@ -2634,11 +2636,11 @@ void riscv_expand_vector_init(rtx target, rtx vals)
 	for (i = 0; i < n_elts; ++i) {
 		x = copy_to_mode_reg(inner_mode, XVECEXP (vals, 0, i));
 		switch (mode) {
-			case V2HImode:
+			case E_V2HImode:
 				if (first) emit_insn(gen_vec_set_firstv2hi(target, x, GEN_INT(i)));
 				else if (XVECEXP (vals, 0, i) != const0_rtx) emit_insn(gen_vec_setv2hi(target, x, GEN_INT(i)));
 				break;
-			case V4QImode:
+			case E_V4QImode:
 				if (first) emit_insn(gen_vec_set_firstv4qi(target, x, GEN_INT(i)));
 				else if (XVECEXP (vals, 0, i) != const0_rtx) emit_insn(gen_vec_setv4qi(target, x, GEN_INT(i)));
 				break;
@@ -2671,12 +2673,14 @@ int riscv_replicated_const_vector (rtx op, int min_val, int max_val)
         return 0;
 }
 
+/* TODO: we removed this, what is this even for
 rtx
 riscv_to_int_mode (rtx x)
 {
   enum machine_mode mode = GET_MODE (x);
-  return VOIDmode == mode ? x : simplify_gen_subreg (int_mode_for_mode (mode), x, mode, 0);
+  return E_VOIDmode == mode ? x : simplify_gen_subreg (int_mode_for_mode (mode), x, mode, 0);
 }
+*/
 
 /* Various helper to validate operands for pulp v2 */
 
@@ -2858,9 +2862,9 @@ static bool riscv_vector_mode_supported_p (enum machine_mode mode)
 {
   switch (mode)
     {
-    case V2HImode:
-    case V4QImode:
-    case V2QImode:
+    case E_V2HImode:
+    case E_V4QImode:
+    case E_V2QImode:
       return true;
     default:
       return false;
@@ -2869,13 +2873,13 @@ static bool riscv_vector_mode_supported_p (enum machine_mode mode)
 
 /* Implements  TARGET_VECTORIZE_PREFERRED_SIMD_MODE */
 
-static enum machine_mode riscv_preferred_simd_mode (enum machine_mode mode)
+static machine_mode riscv_preferred_simd_mode (scalar_mode mode)
 {
   switch (mode)
     {
-    case HImode:
+    case E_HImode:
       return V2HImode;
-    case QImode:
+    case E_QImode:
       return V4QImode;
     default:
       return word_mode;
@@ -3918,9 +3922,9 @@ static int ModeSize(enum machine_mode mode)
 
 {
    switch (mode) {
-      case QImode: return 1;
-      case HImode: return 2;
-      case SImode: return 4;
+      case E_QImode: return 1;
+      case E_HImode: return 2;
+      case E_SImode: return 4;
       default: return 0;
    }
 }
@@ -4240,7 +4244,7 @@ riscv_compute_frame_info (void)
       /* Find out which GPRs we need to save.  */
       for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; regno++)
 	if (riscv_save_reg_p (regno, frame->is_it
-	    || (interrupt_save_t1 && (regno == T1_REGNUM)))
+	    || (interrupt_save_t1 && (regno == T1_REGNUM))))
 	  frame->mask |= 1 << (regno - GP_REG_FIRST), num_x_saved++;
 
       /* If this function calls eh_return, we must also save and restore the
@@ -6341,7 +6345,7 @@ hwloop_optimize (hwloop_info loop)
   /* Insert the loop end label before the last instruction of the loop.  */
   /* BUG RiscV, hwloop hw messes up the loop last inst and consider as last the inst right after the last
      so we emit after and not before */
-  emit_label_before (loop->end_label, loop->last_insn);
+  emit_label_before (as_a <rtx_code_label *> (loop->end_label), loop->last_insn);
 
   return true;
 }
