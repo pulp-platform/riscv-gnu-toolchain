@@ -134,9 +134,6 @@ struct GTY(())  riscv_frame_info {
 
   /* The offset of arg_pointer_rtx from the bottom of the frame.  */
   HOST_WIDE_INT arg_pointer_offset;
-
-  /* PULP */
-  unsigned int is_it;
 };
 
 enum riscv_privilege_levels {
@@ -4105,13 +4102,11 @@ static int scan_reg_definitions(int regno)
 /* Return true if the current function must save register REGNO.  */
 
 static bool
-riscv_save_reg_p (unsigned int regno, unsigned int is_it)
+riscv_save_reg_p (unsigned int regno)
 {
   bool call_saved = !global_regs[regno] && !call_used_regs[regno];
   bool might_clobber = crtl->saves_all_registers
 		       || df_regs_ever_live_p (regno);
-  bool it_rel = is_it && df_regs_ever_live_p(regno) && scan_reg_definitions(regno);
-
 
   if (call_saved && might_clobber)
     return true;
@@ -4120,10 +4115,6 @@ riscv_save_reg_p (unsigned int regno, unsigned int is_it)
     return true;
 
   if (regno == RETURN_ADDR_REGNUM && crtl->calls_eh_return)
-    return true;
-
-  /* TODO: super hacky again. Rewrite to use facility below */
-  if (it_rel)
     return true;
 
   /* If this is an interrupt handler, then must save extra registers.  */
@@ -4156,7 +4147,6 @@ static bool
 riscv_use_save_libcall (const struct riscv_frame_info *frame)
 {
   if (!TARGET_SAVE_RESTORE || crtl->calls_eh_return || frame_pointer_needed
-      || frame->is_it
       || cfun->machine->interrupt_handler_p)
     return false;
 
@@ -4238,13 +4228,12 @@ riscv_compute_frame_info (void)
     }
 
   memset (frame, 0, sizeof (*frame));
-  frame->is_it = cfun->machine->is_interrupt;
 
   if (!cfun->machine->naked_p)
     {
       /* Find out which GPRs we need to save.  */
       for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; regno++)
-	if (riscv_save_reg_p (regno, 0/*frame->is_it*/)
+	if (riscv_save_reg_p (regno)
 	    || (interrupt_save_t1 && (regno == T1_REGNUM)))
 	  frame->mask |= 1 << (regno - GP_REG_FIRST), num_x_saved++;
 
@@ -4258,7 +4247,7 @@ riscv_compute_frame_info (void)
 	 the same space as its companion in riscv_for_each_saved_reg.  */
       if (TARGET_HARD_FLOAT)
 	for (regno = FP_REG_FIRST; regno <= FP_REG_LAST; regno++)
-	  if (riscv_save_reg_p (regno, frame->is_it))
+	  if (riscv_save_reg_p (regno))
 	    frame->fmask |= 1 << (regno - FP_REG_FIRST), num_f_saved++;
     }
 
@@ -4285,9 +4274,6 @@ riscv_compute_frame_info (void)
 	     allocate 12 bytes for callee-saved register.  */
 	  if (TARGET_RVE)
 	    x_save_size = 3 * UNITS_PER_WORD;
-	  
-	  if (!frame->is_it) 
-	    frame->save_libcall_adjustment = x_save_size;
 	}
 
       offset += x_save_size;
