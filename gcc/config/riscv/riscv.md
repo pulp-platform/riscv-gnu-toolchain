@@ -3437,10 +3437,13 @@
   [(set_attr "move_type" "move,const,load,store")
    (set_attr "mode" "V4QI")])
 
+;; TODO: somehow this allows the memmove in memmove-4.c to be inlined resulting
+;; in a XPASS. For now we gate this behind PULP_V2 until we understand this
+;; better. This pattern is also used by the autovectorizer
 (define_expand "movmisalign<mode>"
  [(set (match_operand:MODE_PULP 0 "nonimmediate_operand" "")
        (match_operand:MODE_PULP 1 "general_operand" ""))]
- ""
+ "Pulp_Cpu>=PULP_V2 && !TARGET_MASK_NOVECT"
 {
   emit_move_insn (operands[0], operands[1]);
   DONE;
