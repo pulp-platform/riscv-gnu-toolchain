@@ -38,6 +38,9 @@ stamps/build-qemu: $(srcdir)/qemu
 	date > $@
 ```
 
+## Targets
+good target board `riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow`
+
 ## gcc
 ```bash
 cd riscv-gcc && ./contrib/download_prerequisites
@@ -59,4 +62,36 @@ make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_boa
 ```bash
 cd riscv-binutils
 make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_board=riscv-sim"
+```
+
+## gcc
+```bash
+# example on how to run tls.exp
+cd build-gcc-newlib-stage2/
+cd gcc
+export PATH="/scratch/balasr/riscv-gnu-toolchain/../toolchain/bin:$PATH"
+# if want QEMU
+export PATH="/scratch/balasr/riscv-gnu-toolchain/scripts/wrapper/qemu:$PATH"
+export RISC_V_SYSROOT="/scratch/balasr/riscv-gnu-toolchain/../toolchain/sysroot"
+# all the tests are relative to /scratch/balasr/riscv-gnu-toolchain/riscv-gcc/gcc/testsuite/
+runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.dg/torture/tls/tls.exp
+runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.c-torture/compile/compile.exp
+```
+
+## snippets
+
+Stringify macros
+```c
+#define xstr(a) str(a)
+#define str(a) #a
+#pragma message ("defined=" xstr(ASM_OUTPUT_EXTERNAL(a,b,c)))
+#error abort for debugging
+```
+
+Dump and debug gcc tree
+```c
+printf("fndecl\n");
+debug_tree(fndecl);
+printf("fnptrtype\n");
+debug_tree(fnptrtype);
 ```
