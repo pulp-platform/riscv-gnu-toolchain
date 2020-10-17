@@ -3400,7 +3400,7 @@
 (define_expand "movv2hi"
   [(set (match_operand:V2HI 0 "")
         (match_operand:V2HI 1 ""))]
-  ""
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
 {
   if (riscv_legitimize_move (V2HImode, operands[0], operands[1]))
     DONE;
@@ -3421,7 +3421,7 @@
 (define_expand "movv4qi"
   [(set (match_operand:V4QI 0 "")
         (match_operand:V4QI 1 ""))]
-  ""
+  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
 {
   if (riscv_legitimize_move (V4QImode, operands[0], operands[1]))
     DONE;
