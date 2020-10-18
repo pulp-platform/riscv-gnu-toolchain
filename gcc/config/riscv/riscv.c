@@ -2451,6 +2451,8 @@ riscv_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
 
   *op0 = force_reg (word_mode, *op0);
   if (*op1 != const0_rtx) {
+    /* Only force op1 into a registers if it can't be used as a small constant
+       in th p.b{eq,ne}imm PULP branch */
      if (!((Pulp_Cpu>=PULP_V2) && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) && (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15))) 
     	*op1 = force_reg (word_mode, *op1);
   }
