@@ -6691,7 +6691,7 @@
   )
   (use (match_operand:SI 2 "immediate_operand" "I"))
  ]
- ""
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
  "lp.starti\tx%2,%1\t # loop setup, start set"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -6703,7 +6703,7 @@
   )
   (use (match_operand:SI 2 "immediate_operand" "I"))
  ]
- ""
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
  "lp.endi \tx%2,(%1)\t # loop setup, end set"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -6714,7 +6714,7 @@
        (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
   (use (match_operand:SI 2 "immediate_operand" "I,I"))
  ]
- ""
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
  "@
   lp.count  \tx%2,%1\t # loop setup, lc set
   lp.counti \tx%2,%1\t # loop setup, lc set"
@@ -6729,7 +6729,7 @@
        (label_ref (match_operand 3 "" "")))
   (use (match_operand:SI 4 "immediate_operand" "I,I"))
  ]
- ""
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
  "@
   lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set
   lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set"
@@ -6741,7 +6741,7 @@
  [(set (match_operand:SI 0 "register_operand" "=r")
        (unspec_volatile: SI [(match_operand:SI 1 "immediate_operand" "I")] UNSPECV_ALLOC))
  ]
- ""
+ "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
  " # HW Loop prolog"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -6814,7 +6814,7 @@
               (unspec [(const_int 0)] UNSPEC_LSETUP_END)
               (clobber (match_dup 2))
             ])]
-  ""
+  "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
 {
   /* The loop optimizer doesn't check the predicates... */
   if (GET_MODE (operands[0]) != SImode)
