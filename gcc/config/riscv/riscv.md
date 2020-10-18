@@ -2622,7 +2622,7 @@
 (define_insn_and_split "zero_extendsidi2"
   [(set (match_operand:DI     0 "register_operand"     "=r,r")
 	(zero_extend:DI
-	    (match_operand:SI 1 "nonimmediate_operand" " r,m")))]
+	    (match_operand:SI 1 "nonimmediate_operand_exclude_post" " r,m")))]
   "TARGET_64BIT"
   "@
    #
@@ -2641,7 +2641,7 @@
 (define_insn_and_split "zero_extendhi<GPR:mode>2"
   [(set (match_operand:GPR    0 "register_operand"     "=r,r")
 	(zero_extend:GPR
-	    (match_operand:HI 1 "nonimmediate_operand" " r,m")))]
+	    (match_operand:HI 1 "nonimmediate_operand_exclude_post" " r,m")))]
   ""
   "@
    #
@@ -2663,7 +2663,7 @@
 (define_insn "zero_extendqi<SUPERQI:mode>2"
   [(set (match_operand:SUPERQI 0 "register_operand"    "=r,r")
 	(zero_extend:SUPERQI
-	    (match_operand:QI 1 "nonimmediate_operand" " r,m")))]
+	    (match_operand:QI 1 "nonimmediate_operand_exclude_post" " r,m")))]
   ""
   "@
    andi\t%0,%1,0xff
@@ -2681,7 +2681,7 @@
 (define_insn "extendsidi2"
   [(set (match_operand:DI     0 "register_operand"     "=r,r")
 	(sign_extend:DI
-	    (match_operand:SI 1 "nonimmediate_operand" " r,m")))]
+	    (match_operand:SI 1 "nonimmediate_operand_exclude_post" " r,m")))]
   "TARGET_64BIT"
   "@
    sext.w\t%0,%1
@@ -2693,7 +2693,7 @@
 (define_insn_and_split "extend<SHORT:mode><SUPERQI:mode>2"
   [(set (match_operand:SUPERQI   0 "register_operand"     "=r,r")
 	(sign_extend:SUPERQI
-	    (match_operand:SHORT 1 "nonimmediate_operand" " r,m")))]
+	    (match_operand:SHORT 1 "nonimmediate_operand_exclude_post" " r,m")))]
   ""
   "@
    #
