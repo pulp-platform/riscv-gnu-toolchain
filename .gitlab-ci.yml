@@ -18,18 +18,14 @@ variables:
   RISCV_ABI: "ilp32f"
   # dhrystone test doesn't understand gc, so we spell it out
   RISCV_ARCH: "rv32imafc"
+  RISCV_PULP_ARCH: "rv32imfcxpulpv2"
 
 stages:
-#  - build
   - test
 
 default:
   before_script:
     - pwd
-    - echo "Creating install directory"
-    - mkdir -p toolchain
-    - echo "Running configure"
-    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
 
 # jobs
 
@@ -57,6 +53,10 @@ default:
 gcc:
   stage: test
   script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
     - echo "Running tests"
     - make report-gcc
     # collect all dejagnu *.sum results into base directory
@@ -80,6 +80,10 @@ gcc:
 binutils:
   stage: test
   script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
     - echo "Running tests"
     - make report-binutils
     - find . -name '*.sum' -exec cp {} $(pwd) \;
@@ -99,6 +103,10 @@ binutils:
 gdb:
   stage: test
   script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
     - echo "Running tests"
     - make check-gdb
     - find . -name '*.sum' -exec cp {} $(pwd) \;
@@ -134,3 +142,77 @@ gdb:
 #      - "*.sum.x"
 #    reports:
 #      junit: "*.xml"
+
+pulp-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make report-gcc
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+pulp-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make report-binutils
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+pulp-gdb:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make check-gdb
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
