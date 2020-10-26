@@ -76,6 +76,8 @@ export RISC_V_SYSROOT="/scratch/balasr/riscv-gnu-toolchain/../toolchain/sysroot"
 # all the tests are relative to /scratch/balasr/riscv-gnu-toolchain/riscv-gcc/gcc/testsuite/
 runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.dg/torture/tls/tls.exp
 runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.c-torture/compile/compile.exp
+runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.dg/torture/dg-torture.exp
+make -C build-gcc-newlib-stage2 check-gcc "RUNTESTFLAGS=--target_board='riscv-sim/-march=rv32imfcxpulpv2/-mabi=ilp32f/-mcmodel=medlow'"
 ```
 
 ## snippets
