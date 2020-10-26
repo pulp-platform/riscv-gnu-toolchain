@@ -1581,6 +1581,7 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
 	 We'll still compute res, but it should be DCEd later.  */
       use_operand_p use;
       gimple *use_stmt;
+      /*
       if (!is_ubsan
 	  && lhs
 	  && uns
@@ -1590,6 +1591,7 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
 	  && is_gimple_assign (use_stmt)
 	  && gimple_assign_rhs_code (use_stmt) == IMAGPART_EXPR)
 	goto highpart;
+      */
 
       if (GET_MODE_2XWIDER_MODE (mode).exists (&wmode)
 	  && targetm.scalar_mode_supported_p (wmode)
