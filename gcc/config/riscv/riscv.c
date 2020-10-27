@@ -6542,14 +6542,6 @@ static void riscv_file_end (void)
 
 }
 
-/* TODO: why do we disable LRA? */
-static bool
-riscv_lra_p (void)
-{
-  return 0;
-}
-/* #undef TARGET_LRA_P */
-/* #define TARGET_LRA_P riscv_lra_p */
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
