@@ -205,7 +205,7 @@ struct riscv_address_info {
   rtx offset;
   enum riscv_symbol_type symbol_type;
   /* PULP */
-  enum machine_mode mode;
+  machine_mode mode;
 };
 
 /* One stage in a constant building sequence.  These sequences have
@@ -2654,8 +2654,8 @@ int riscv_replicated_const_vector (rtx op, int min_val, int max_val)
 
 {
         if (GET_CODE (op) == CONST_VECTOR) {
-                enum machine_mode mode = GET_MODE(op);
-                enum machine_mode inner_mode = GET_MODE_INNER (mode);
+                machine_mode mode = GET_MODE(op);
+                machine_mode inner_mode = GET_MODE_INNER (mode);
                 HOST_WIDE_INT ref=0;
                 int ref1;
                 HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
@@ -2676,7 +2676,7 @@ int riscv_replicated_const_vector (rtx op, int min_val, int max_val)
 rtx
 riscv_to_int_mode (rtx x)
 {
-  enum machine_mode mode = GET_MODE (x);
+  machine_mode mode = GET_MODE (x);
   return E_VOIDmode == mode ? x : simplify_gen_subreg (int_mode_for_mode (mode), x, mode, 0);
 }
 */
@@ -2805,7 +2805,7 @@ int riscv_valid_bit_insert(rtx op1, rtx op2, rtx op3, int *Len, int *Off)
 	// fprintf(stderr, "Binsert candidate OK: Len: %d, Offset: %d, H: %d\n", L, I, H);
 	return 1;
 }
-int riscv_bitmask (unsigned HOST_WIDE_INT x, int *len, enum machine_mode mode)
+int riscv_bitmask (unsigned HOST_WIDE_INT x, int *len, machine_mode mode)
 {
 	int top, bottom;
 
@@ -2830,7 +2830,7 @@ bool riscv_bitmask_p (unsigned HOST_WIDE_INT x)
 	return (!TARGET_MASK_NOBITOP) && riscv_bitmask (x, NULL, VOIDmode) != -1;
 }
 
-bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT x, int pos, enum machine_mode mode)
+bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT x, int pos, machine_mode mode)
 
 {
 	int len, position;
@@ -2857,7 +2857,7 @@ bool riscv_valid_permute_operands(rtx op1, rtx op2, rtx sel)
 
 /* Implements TARGET_VECTOR_MODE_SUPPORTED_P */
 
-static bool riscv_vector_mode_supported_p (enum machine_mode mode)
+static bool riscv_vector_mode_supported_p (machine_mode mode)
 {
   switch (mode)
     {
@@ -2889,7 +2889,7 @@ static machine_mode riscv_preferred_simd_mode (scalar_mode mode)
 /* Implements TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT */
 
 static bool
-riscv_builtin_support_vector_misalignment (enum machine_mode mode ATTRIBUTE_UNUSED,
+riscv_builtin_support_vector_misalignment (machine_mode mode ATTRIBUTE_UNUSED,
                                           const_tree type ATTRIBUTE_UNUSED,
                                           int misalignment,
                                           bool is_packed)
@@ -3570,7 +3570,7 @@ riscv_block_move_straight (rtx dest, rtx src, HOST_WIDE_INT length)
   HOST_WIDE_INT offset, delta;
   unsigned HOST_WIDE_INT bits;
   int i;
-  enum machine_mode mode;
+  machine_mode mode;
   rtx *regs;
 
   bits = MAX (BITS_PER_UNIT,
@@ -3845,7 +3845,7 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 
     case 'W':
       {
-         enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+         machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
          HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
          HOST_WIDE_INT val = INTVAL (CONST_VECTOR_ELT (op, 0)) & mask;
          if (val_signbit_known_set_p(inner_mode, val))
@@ -3856,7 +3856,7 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 
     case 'w':
       {
-         enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+         machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
          HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
          HOST_WIDE_INT val = INTVAL (CONST_VECTOR_ELT (op, 0)) & mask;
          if (val_signbit_known_set_p(inner_mode, val)) // ????
@@ -3867,7 +3867,7 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 
     case 'V':
       {
-        enum machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
+        machine_mode inner_mode = GET_MODE_INNER (GET_MODE(op));
         HOST_WIDE_INT mask = GET_MODE_MASK (inner_mode);
         int i;
         int Val=0;
@@ -3918,7 +3918,7 @@ riscv_print_operand (FILE *file, rtx op, int letter)
     }
 }
 
-static int ModeSize(enum machine_mode mode)
+static int ModeSize(machine_mode mode)
 
 {
    switch (mode) {
