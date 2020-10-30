@@ -70,6 +70,10 @@ gcc:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.log"
       - "*.xml"
       - "*.html"
       - "*.sum"
@@ -93,6 +97,7 @@ binutils:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config.log
       - "*.xml"
       - "*.html"
       - "*.sum"
@@ -116,6 +121,7 @@ gdb:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config.log
       - "*.xml"
       - "*.html"
       - "*.sum"
@@ -163,6 +169,7 @@ pulp-gcc:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config.log
       - "*.xml"
       - "*.html"
       - "*.sum"
@@ -186,6 +193,7 @@ pulp-binutils:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config.log
       - "*.xml"
       - "*.html"
       - "*.sum"
@@ -209,6 +217,7 @@ pulp-gdb:
   artifacts:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
+      - config.log
       - "*.xml"
       - "*.html"
       - "*.sum"
