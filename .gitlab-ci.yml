@@ -16,8 +16,10 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   MAKEFLAGS: "-j64"
   RISCV_ABI: "ilp32f"
+  RISCV_ABI_ALT: "ilp32e" # embedded abi
   # dhrystone test doesn't understand gc, so we spell it out
   RISCV_ARCH: "rv32imafc"
+  RISCV_ARCH_ALT: "rv32emc"
   RISCV_PULP_ARCH: "rv32imfcxpulpv2"
 
 stages:
@@ -27,30 +29,8 @@ default:
   before_script:
     - pwd
 
-# jobs
-
-# no point in pre-building gcc when we built it from scratch for every test anyway
-# gnu-toolchain:
-#   stage: build
-#   script:
-#     - echo "Compiling and Installing"
-#     - make
-#   artifacts:
-#     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
-#     paths:
-#       - toolchain/*
-  # cache:
-    # cached per-branch and per-stage
-    #key: ${CI_COMMIT_REF_SLUG}
-    #untracked: true
-    # paths:
-    # - "*"
-
-#find . -name '*.sum' -exec cp {} $(pwd) \;
-#for f in ./*.sum; do mv "$f" "$f.x"; done
-#for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
-#for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
-gcc:
+# rv32imafc ilp32f gcc
+rv32imafc-ilp32f-gcc:
   stage: test
   script:
     - echo "Creating install directory"
@@ -81,7 +61,7 @@ gcc:
     reports:
       junit: "*.xml"
 
-binutils:
+rv32imafc-ilp32f-binutils:
   stage: test
   script:
     - echo "Creating install directory"
@@ -105,7 +85,7 @@ binutils:
     reports:
       junit: "*.xml"
 
-gdb:
+rv32imafc-ilp32f-gdb:
   stage: test
   script:
     - echo "Creating install directory"
@@ -129,27 +109,88 @@ gdb:
     reports:
       junit: "*.xml"
 
-# report-newlib target is the same as report-gcc-newlib
-#newlib:
-#  stage: test
-#  script:
-#    - echo "Running tests"
-#    - make report-newlib
-#    - find . -name '*.sum' -exec cp {} $(pwd) \;
-#    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f.x"; done
-#    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
-#    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
-#  artifacts:
-#    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
-#    paths:
-#      - "*.xml"
-#      - "*.html"
-#      - "*.sum"
-#      - "*.sum.x"
-#    reports:
-#      junit: "*.xml"
+# rv32emc ilp32e
+rv32emc-ilp32e-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-gcc || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.log"
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
 
-pulp-gcc:
+rv32emc-ilp32e-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-binutils  || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32emc-ilp32e-gdb:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make check-gdb || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+# pulp rv32imfcxpulpv2 ilp32f
+rv32imfcxpulpv2-ilp32f-gcc:
   stage: test
   script:
     - echo "Creating install directory"
@@ -177,7 +218,7 @@ pulp-gcc:
     reports:
       junit: "*.xml"
 
-pulp-binutils:
+rv32imfcxpulpv2-ilp32f-binutils:
   stage: test
   script:
     - echo "Creating install directory"
@@ -201,7 +242,7 @@ pulp-binutils:
     reports:
       junit: "*.xml"
 
-pulp-gdb:
+rv32imfcxpulpv2-ilp32f-gdb:
   stage: test
   script:
     - echo "Creating install directory"
