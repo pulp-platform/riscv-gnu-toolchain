@@ -120,6 +120,10 @@ check-gcc: check-gcc-@default_target@
 check-gcc-linux: stamps/check-gcc-linux
 check-gcc-newlib: stamps/check-gcc-newlib
 check-gcc-newlib-nano: stamps/check-gcc-newlib-nano
+.PHONY: check-gcc-linux-qemu check-gcc-newlib-qemu check-gcc-newlib-nano-qemu
+check-gcc-linux-qemu: stamps/check-gcc-linux-qemu
+check-gcc-newlib-qemu: stamps/check-gcc-newlib-qemu
+check-gcc-newlib-nano-qemu: stamps/check-gcc-newlib-nano-qemu
 .PHONY: check-dhrystone check-dhrystone-linux check-dhrystone-newlib
 check-dhrystone: check-dhrystone-@default_target@
 .PHONY: check-binutils check-binutils-linux check-binutils-newlib
@@ -721,6 +725,21 @@ stamps/check-gcc-linux: stamps/build-gcc-linux-stage2 stamps/build-gdb-newlib st
 	mkdir -p $(dir $@)
 	date > $@
 
+stamps/check-gcc-newlib-qemu: stamps/build-gcc-newlib-stage2 stamps/build-qemu stamps/build-dejagnu
+	PATH="$(srcdir)/scripts/wrapper/qemu:$(INSTALL_DIR)/bin:$(PATH)" RISC_V_SYSROOT="$(SYSROOT)" $(MAKE) -C build-gcc-newlib-stage2 check-gcc "RUNTESTFLAGS=--target_board='$(NEWLIB_TARGET_BOARDS)'"
+	mkdir -p $(dir $@)
+	date > $@
+
+stamps/check-gcc-newlib-nano-qemu: stamps/build-gcc-newlib-stage2 stamps/build-qemu stamps/build-dejagnu
+	PATH="$(srcdir)/scripts/wrapper/qemu:$(INSTALL_DIR)/bin:$(PATH)" RISC_V_SYSROOT="$(SYSROOT)" $(MAKE) -C build-gcc-newlib-stage2 check-gcc "RUNTESTFLAGS=--target_board='$(NEWLIB_NANO_TARGET_BOARDS)'"
+	mkdir -p $(dir $@)
+	date > $@
+
+stamps/check-gcc-linux-qemu: stamps/build-gcc-linux-stage2 stamps/build-qemu stamps/build-dejagnu
+	PATH="$(srcdir)/scripts/wrapper/qemu:$(INSTALL_DIR)/bin:$(PATH)" RISC_V_SYSROOT="$(SYSROOT)" $(MAKE) -C build-gcc-linux-stage2 check-gcc "RUNTESTFLAGS=--target_board='$(GLIBC_TARGET_BOARDS)'"
+	mkdir -p $(dir $@)
+	date > $@
+
 .PHONY: check-dhrystone-newlib check-dhrystone-newlib-nano
 check-dhrystone-newlib: $(patsubst %,stamps/check-dhrystone-newlib-%,$(NEWLIB_MULTILIB_NAMES))
 check-dhrystone-newlib-nano: $(patsubst %,stamps/check-dhrystone-newlib-nano-%,$(NEWLIB_MULTILIB_NAMES))
@@ -788,6 +807,17 @@ report-gcc-newlib-nano: stamps/check-gcc-newlib-nano
 
 .PHONY: report-gcc-linux
 report-gcc-linux: stamps/check-gcc-linux
+	$(srcdir)/scripts/testsuite-filter gcc glibc $(srcdir)/test/whitelist `find build-gcc-linux-stage2/gcc/testsuite/ -name *.sum |paste -sd "," -`
+
+.PHONY: report-gcc-newlib-qemu report-gcc-newlib-nano-qemu
+report-gcc-newlib-qemu: stamps/check-gcc-newlib-qemu
+	$(srcdir)/scripts/testsuite-filter gcc newlib $(srcdir)/test/whitelist `find build-gcc-newlib-stage2/gcc/testsuite/ -name *.sum |paste -sd "," -`
+
+report-gcc-newlib-nano-qemu: stamps/check-gcc-newlib-nano-qemu
+	$(srcdir)/scripts/testsuite-filter gcc newlib-nano $(srcdir)/test/whitelist `find build-gcc-newlib-stage2/gcc/testsuite/ -name *.sum |paste -sd "," -`
+
+.PHONY: report-gcc-linux-qemu
+report-gcc-linux: stamps/check-gcc-linux-qemu
 	$(srcdir)/scripts/testsuite-filter gcc glibc $(srcdir)/test/whitelist `find build-gcc-linux-stage2/gcc/testsuite/ -name *.sum |paste -sd "," -`
 
 .PHONY: report-dhrystone-newlib report-dhrystone-newlib-nano

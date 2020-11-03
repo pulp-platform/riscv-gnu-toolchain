@@ -128,61 +128,62 @@ rv32imafc-ilp32f-gdb:
 # only have 4 available. I don't even know how that is being compiled. See
 # libgloss/riscv/internal_syscall.h
 
-# rv32emc-ilp32e-gcc:
-#   stage: test
-#   script:
-#     - echo "Creating install directory"
-#     - mkdir -p emctoolchain
-#     - echo "Running configure"
-#     - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
-#     - echo "Running tests"
-#     - make report-gcc || echo "suppressing error"
-#     # collect all dejagnu *.sum results into base directory
-#     - find . -name '*.sum' -exec cp {} $(pwd) \;
-#     # apply additional filter on test results
-#     - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
-#     # convert to junit xml files
-#     - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
-#     # convert to html
-#     - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
-#   artifacts:
-#     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
-#     paths:
-#       - config log
-#       - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
-#       - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
-#       - "*.log"
-#       - "*.xml"
-#       - "*.html"
-#       - "*.sum"
-#       - "*.sum.x"
-#     reports:
-#       junit: "*.xml"
+rv32emc-ilp32e-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-gcc-newlib-qemu || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.log"
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
 
-# rv32emc-ilp32e-binutils:
-#   stage: test
-#   script:
-#     - echo "Creating install directory"
-#     - mkdir -p emctoolchain
-#     - echo "Running configure"
-#     - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
-#     - echo "Running tests"
-#     - make report-binutils  || echo "suppressing error"
-#     - find . -name '*.sum' -exec cp {} $(pwd) \;
-#     - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
-#     - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
-#     - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
-#   artifacts:
-#     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
-#     paths:
-#       - config.log
-#       - "*.xml"
-#       - "*.html"
-#       - "*.sum"
-#       - "*.sum.x"
-#     reports:
-#       junit: "*.xml"
+rv32emc-ilp32e-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-binutils  || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
 
+# This uses gdb-sim which is not working, see above
 # rv32emc-ilp32e-gdb:
 #   stage: test
 #   script:
