@@ -1,0 +1,241 @@
+#!/usr/bin/env python
+
+
+from __future__ import print_function
+import sys
+import os
+import re
+import argparse
+
+debug = False
+
+
+class Arch:
+    def __init__(self, arch):
+        arch = re.sub("^rv(32|64|128)g", 'rv\\1imafd', arch)
+        m = re.match('rv(32|64|128)', arch)
+        self.base_arch = m.group(0)
+        self.ext = []
+        i = len(self.base_arch)
+
+        while i < len(arch):
+            ext = arch[i]
+            if ext in ['x', 's', 'z']:
+                extlen = 1
+                while (i+extlen) < len(arch) and arch[i+extlen] != '_':
+                    extlen += 1
+                self.ext.append(arch[i:i + extlen])
+                i += extlen
+            elif ext == '_':
+                i += 1
+            else:
+                self.ext.append(ext)
+                i += 1
+
+
+def get_white_list_files(raw_arch, abi, libc, white_list_base_dir):
+    """ Return white file list according the arch, abi, libc name and component.
+    """
+    white_list_files = []
+    arch = Arch(raw_arch)
+
+    def append_if_exist(filename):
+        if debug:
+            print("Try append: %s" % filename)
+        filepath = os.path.join(white_list_base_dir, filename)
+        if os.path.exists(filepath):
+            if debug:
+                print("Got: %s" % filename)
+            white_list_files.append(filepath)
+
+    libc_filename = "common.log"
+    append_if_exist(libc_filename)
+
+    libc_filename = "%s.log" % (libc)
+    append_if_exist(libc_filename)
+
+    filename = "%s.log" % (arch.base_arch)
+    append_if_exist(filename)
+
+    filename = "%s.log" % (abi)
+    append_if_exist(filename)
+
+    filename = "%s.%s.log" % (arch.base_arch, abi)
+    append_if_exist(filename)
+
+    filename = "%s.%s.log" % (libc, arch.base_arch)
+    append_if_exist(filename)
+
+    filename = "%s.%s.log" % (libc, abi)
+    append_if_exist(filename)
+
+    filename = "%s.%s.%s.log" % (libc, arch.base_arch, abi)
+    append_if_exist(filename)
+
+    for ext in arch.ext:
+        filename = "%s.log" % (ext)
+        append_if_exist(filename)
+
+        filename = "%s.%s.log" % (arch.base_arch, ext)
+        append_if_exist(filename)
+
+        filename = "%s.%s.log" % (ext, abi)
+        append_if_exist(filename)
+
+        filename = "%s.%s.%s.log" % (arch.base_arch, ext, abi)
+        append_if_exist(filename)
+
+        filename = "%s.%s.log" % (libc, ext)
+        append_if_exist(filename)
+
+        filename = "%s.%s.%s.log" % (libc, arch.base_arch, ext)
+        append_if_exist(filename)
+
+        filename = "%s.%s.%s.log" % (libc, ext, abi)
+        append_if_exist(filename)
+
+        filename = "%s.%s.%s.%s.log" % (libc, arch.base_arch, ext, abi)
+        append_if_exist(filename)
+
+    return white_list_files
+
+
+def read_white_lists(white_list_files, is_gcc):
+    if is_gcc:
+        white_lists = dict()
+    else:
+        white_lists = set()
+    for fname in white_list_files:
+        with open(fname) as f:
+            content = f.readlines()
+            for l in content:
+                l = l.strip()
+                if len(l) == 0:
+                    continue
+                if l[0] == '#':
+                    continue
+
+                if is_gcc:
+                    try:
+                        key = l.split(' ')[1]
+                    except Exception as ex:
+                        print(ex)
+                        print("Corrupt whitelist file?")
+                        print("Each line must contail <STATUS>: .*")
+                        print("e.g. FAIL: g++.dg/pr83239.C")
+                        print("Or starts with # for comment")
+                    white_lists[key] = l
+                else:
+                    white_lists.add(l)
+
+    return white_lists
+
+
+def filter_sum(sum_files, sum_out_file, in_tool, lib, whitelist_base_dir):
+    for sum_file in sum_files:
+        with open(sum_file, 'r') as f, open(sum_out_file, 'w') as of:
+            content = f.readlines()
+            current_target = None
+            variations = []
+            scan_variations = False
+            unexpected_result = dict()
+            tool = os.path.basename(sum_file).split(".")[0]
+            for l in content:
+                if l.startswith("Schedule of variations"):
+                    scan_variations = True
+                    print(l, end='', file=of)
+                    continue
+                if scan_variations and l.startswith("    "):
+                    variations.append(l.strip())
+                    print(l, end='', file=of)
+                    continue
+                scan_variations = False
+
+                if l.startswith("Running target"):
+                    # Parsing current running target.
+                    current_target = l.split(" ")[-1].strip()
+                    unexpected_result[current_target] = list()
+                    print(l, end='', file=of)
+                elif l.startswith("FAIL") or l.startswith("XPASS") or l.startswith("ERROR"):
+                    unexpected_result[current_target].append(l.strip())
+                    variation = current_target
+                    unexpected = [l.strip()]
+                    filter_it = inband_filter_result(
+                        in_tool, lib, whitelist_base_dir,
+                        tool, variation, unexpected)
+                    if not filter_it:
+                        print(l, end='', file=of)
+                else:
+                    print(l, end='', file=of)
+    return
+
+
+def inband_filter_result(tool, libc, white_list_base_dir,
+                         testtool, variation, unexpected_result):
+    """Return True if unexpected_result is filtered by given whitelist"""
+    summary = dict()
+    any_fail = False
+    is_gcc = tool == 'gcc'
+    # Filter with white list.
+    # Extract variation to arch/abi
+    arch = ""
+    abi = ""
+    cmodel = ""
+    for info in variation.split('/'):
+        if info.startswith('-march'):
+            arch = info[7:]
+        elif info.startswith('-mabi'):
+            abi = info[6:]
+        elif info.startswith('-mcmodel'):
+            cmodel = info[9:]
+
+    white_list = \
+        get_white_list(arch, abi, libc,
+                       os.path.join(white_list_base_dir, tool),
+                       is_gcc)
+    # filter!
+    config = (arch, abi, cmodel)
+    fail_count = 0
+    unexpected_result_list = []
+    if is_gcc:
+        case_count = set()
+        for ur in unexpected_result:
+            key = ur.split(' ')[1]
+            if key in white_list and ur.startswith(white_list[key]):
+                # This item can be ignored
+                return True
+            else:
+                return False
+
+    else:
+        for ur in unexpected_result:
+            if ur not in white_list:
+                return False
+        return True
+
+
+def get_white_list(arch, abi, libc, white_list_base_dir, is_gcc):
+    white_list_files = \
+        get_white_list_files(arch, abi, libc, white_list_base_dir)
+    white_list = read_white_lists(white_list_files, is_gcc)
+    return white_list
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Filter Dejagnu sum files.')
+    parser.add_argument('tool', type=str, choices=['gcc', 'binutils'],
+                        help='tool name')
+    parser.add_argument('libc', type=str, help='libc name')
+    parser.add_argument('white_list_dir', type=str,
+                        help='base directory of whitelist files')
+    parser.add_argument('sum_file', type=str,
+                        help='sum file to process')
+    parser.add_argument('-o', '--out_file', default='/dev/stdout', type=str,
+                        help='file to write processed sum file to')
+
+    args = parser.parse_args()
+
+    sum_files = args.sum_file.split(',')
+    filter_sum(sum_files, args.out_file, args.tool, args.libc,
+               args.white_list_dir)
+    sys.exit(0)

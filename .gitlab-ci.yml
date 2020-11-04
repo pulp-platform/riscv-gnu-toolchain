@@ -1,0 +1,287 @@
+# Copyright 2020 ETH Zurich and University of Bologna
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  MAKEFLAGS: "-j64"
+  RISCV_ABI: "ilp32f"
+  RISCV_ABI_ALT: "ilp32e" # embedded abi
+  # dhrystone test doesn't understand gc, so we spell it out
+  RISCV_ARCH: "rv32imafc"
+  RISCV_ARCH_ALT: "rv32emc"
+  RISCV_PULP_ARCH: "rv32imfcxpulpv2"
+
+stages:
+  - test
+
+default:
+  before_script:
+    - pwd
+
+# rv32imafc ilp32f gcc
+rv32imafc-ilp32f-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
+    - echo "Running tests"
+    - make report-gcc || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.log"
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32imafc-ilp32f-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
+    - echo "Running tests"
+    - make report-binutils  || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32imafc-ilp32f-gdb:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_ARCH"
+    - echo "Running tests"
+    - make check-gdb || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+# rv32emc ilp32e
+
+#
+# TODO: We cannot yet run tests using the ilp32e abi because
+#
+# 1. the syscall abi is different, we use t0 instead of a7 to pass the syscall
+# number. We need to teach gdb-sim about the ilp32e abi for that first.
+#
+# 2. for that we need to get the different configuration/machs work in gdb-sim.
+# Currently we always have a very all encompassing mode (rv32imafdcxpulpv2)
+# enabled instead of selectively using extensions.
+#
+#
+# TODO: We cannont yet run tests using the e-extension because
+#
+# 1. The default syscall abi in newlib requires 6 argument registers, but we
+# only have 4 available. I don't even know how that is being compiled. See
+# libgloss/riscv/internal_syscall.h
+
+rv32emc-ilp32e-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-gcc-newlib-qemu || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.log"
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32emc-ilp32e-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p emctoolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+    - echo "Running tests"
+    - make report-binutils  || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+# This uses gdb-sim which is not working, see above
+# rv32emc-ilp32e-gdb:
+#   stage: test
+#   script:
+#     - echo "Creating install directory"
+#     - mkdir -p emctoolchain
+#     - echo "Running configure"
+#     - ./configure --prefix=$(pwd)/emctoolchain --with-abi="$RISCV_ABI_ALT" --with-arch="$RISCV_ARCH_ALT"
+#     - echo "Running tests"
+#     - make check-gdb || echo "suppressing error"
+#     - find . -name '*.sum' -exec cp {} $(pwd) \;
+#     - for f in ./*.sum; do cp "$f" "$f.x"; done
+#     - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+#     - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+#   artifacts:
+#     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+#     paths:
+#       - config.log
+#       - "*.xml"
+#       - "*.html"
+#       - "*.sum"
+#       - "*.sum.x"
+#     reports:
+#       junit: "*.xml"
+
+# pulp rv32imfcxpulpv2 ilp32f
+rv32imfcxpulpv2-ilp32f-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make report-gcc || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32imfcxpulpv2-ilp32f-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make report-binutils || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv32imfcxpulpv2-ilp32f-gdb:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p pulpv2toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - echo "Running tests"
+    - make check-gdb || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+

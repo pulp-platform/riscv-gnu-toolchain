@@ -12,3 +12,20 @@ FAIL: gcc.c-torture/execute/printf-2.c
 # Missing dg-require-effective-target shared
 #
 FAIL: g++.dg/lto/pr87906 cp_lto_pr87906_0.o-cp_lto_pr87906_1.o link,  -O -fPIC -flto
+
+#
+# balasr: tls is not supported with newlib. Unfortunately, the tls check somehow
+# passes and subsequent quests that shouldnt even be considered run and fail
+#
+FAIL: gcc.dg/torture/tls/run-gd.c
+FAIL: gcc.dg/torture/tls/run-ie.c
+FAIL: gcc.dg/torture/tls/run-ld.c
+FAIL: gcc.dg/torture/tls/run-le.c
+FAIL: gcc.dg/torture/tls/thr-init-1.c
+FAIL: gcc.dg/torture/tls/thr-init-2.c
+FAIL: gcc.dg/torture/tls/tls-reload-1.c
+FAIL: gcc.dg/tls/thr-init-2.c
+
+FAIL: g++.dg/tls/static-1.C
+FAIL: gcc.dg/tls/opt-12.c
+FAIL: gcc.dg/lto/20090210
