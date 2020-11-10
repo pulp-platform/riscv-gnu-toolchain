@@ -609,10 +609,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
 		  "configuration", isa);
 
-      if (*flags & MASK_ATOMIC)
-	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
-		  "configuration", isa);
-
       if (riscv_abi != ABI_ILP32)
 	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
     }
@@ -673,10 +669,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
 		  "configuration", isa);
 
-      if (*flags & MASK_ATOMIC)
-	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
-		  "configuration", isa);
-
       /* TODO: reinstantiate this when we remove the abi forcing */
       /* if (riscv_abi != ABI_ILP32)
 	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
@@ -696,10 +688,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 
       if (*flags & MASK_64BIT)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
-		  "configuration", isa);
-
-      if (*flags & MASK_ATOMIC)
-	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
 		  "configuration", isa);
     }
 
@@ -722,10 +710,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 
       if (*flags & MASK_64BIT)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
-		  "configuration", isa);
-
-      if (*flags & MASK_ATOMIC)
-	error_at (loc, "%<-march=%s%>: atomics are not supported in this "
 		  "configuration", isa);
     }
 
