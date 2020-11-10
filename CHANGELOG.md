@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
+### Changed
+- Using `a` extension with `xpulpv2` is not an error anymore
+- Remove redundant code that forces abi to ilp32 when using xpulp
 
 ## [2.0.0] - 2020-11-4
 
