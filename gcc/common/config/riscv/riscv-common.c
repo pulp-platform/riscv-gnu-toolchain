@@ -608,9 +608,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       if (*flags & MASK_64BIT)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
 		  "configuration", isa);
-
-      if (riscv_abi != ABI_ILP32)
-	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
     }
 
   if (subset_list->lookup("xpulpv"))
@@ -618,7 +615,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       if (subset_list->lookup("xpulpv", 0, 0))
 	{
 	  *flags &= ~MASK_MUL;
-	  riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V0)
 	    Pulp_Cpu = PULP_V0;
 	  else
@@ -628,7 +624,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       else if (subset_list->lookup("xpulpv", 1, 0))
 	{
 	  *flags &= ~MASK_MUL;
-	  riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V1)
 	    Pulp_Cpu = PULP_V1;
 	  else
@@ -640,7 +635,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	{
 	  *flags &= ~MASK_MUL;
 	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
-	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V2)
 	    Pulp_Cpu = PULP_V2;
 	  else
@@ -651,7 +645,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	{
 	  *flags |= MASK_MUL;
 	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
-	    riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V3)
 	    Pulp_Cpu = PULP_V3;
 	  else
@@ -668,17 +661,11 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
       if (*flags & MASK_64BIT)
 	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
 		  "configuration", isa);
-
-      /* TODO: reinstantiate this when we remove the abi forcing */
-      /* if (riscv_abi != ABI_ILP32)
-	error_at (loc, "%<-march=%s%>: abi needs to be ilp32", isa);
-      */
     }
 
   if (subset_list->lookup("xgap", 8, 0))
     {
       *flags |= MASK_MUL;
-      riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 
       if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
 	Pulp_Cpu = PULP_GAP8;
@@ -694,7 +681,6 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 
   if (subset_list->lookup("xpulpslim"))
     {
-      riscv_abi = ABI_ILP32; /* TODO: suspicious ABI forcing */
 
       if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
 	Pulp_Cpu = PULP_GAP8;
