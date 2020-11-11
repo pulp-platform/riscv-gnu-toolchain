@@ -230,6 +230,8 @@ rv32imfcxpulpv2-ilp32f-gcc:
     name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
       - config.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
       - "*.xml"
       - "*.html"
       - "*.sum"
