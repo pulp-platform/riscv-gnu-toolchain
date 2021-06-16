@@ -70,10 +70,18 @@ make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_boa
 cd build-gcc-newlib-stage2/
 cd gcc
 export PATH="/scratch/balasr/riscv-gnu-toolchain/../toolchain/bin:$PATH"
+
 # if want QEMU
 export PATH="/scratch/balasr/riscv-gnu-toolchain/scripts/wrapper/qemu:$PATH"
 export RISC_V_SYSROOT="/scratch/balasr/riscv-gnu-toolchain/../toolchain/sysroot"
+
+# make sure that you have a site.exp file that defines 'target_triplet', 'src_dir' etc.
+# if it doesn't exist, you can just run
+make report-gcc
+# which will generate these files for you
+
 # all the tests are relative to /scratch/balasr/riscv-gnu-toolchain/riscv-gcc/gcc/testsuite/
+# make sure you have site.exp at the same location
 runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.dg/torture/tls/tls.exp
 runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.c-torture/compile/compile.exp
 runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow' gcc.dg/torture/dg-torture.exp
