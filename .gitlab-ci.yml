@@ -20,7 +20,7 @@ variables:
   # dhrystone test doesn't understand gc, so we spell it out
   RISCV_ARCH: "rv32imafc"
   RISCV_ARCH_ALT: "rv32emc"
-  RISCV_PULP_ARCH: "rv32imfcxpulpv2"
+  RISCV_PULP_ARCH: "rv32imfcxpulpv3"
 
 stages:
   - test
@@ -118,7 +118,7 @@ rv32imafc-ilp32f-gdb:
 # number. We need to teach gdb-sim about the ilp32e abi for that first.
 #
 # 2. for that we need to get the different configuration/machs work in gdb-sim.
-# Currently we always have a very all encompassing mode (rv32imafdcxpulpv2)
+# Currently we always have a very all encompassing mode (rv32imafdcxpulpv3)
 # enabled instead of selectively using extensions.
 #
 #
@@ -208,14 +208,14 @@ rv32emc-ilp32e-binutils:
 #     reports:
 #       junit: "*.xml"
 
-# pulp rv32imfcxpulpv2 ilp32f
-rv32imfcxpulpv2-ilp32f-gcc:
+# pulp rv32imfcxpulpv3 ilp32f
+rv32imfcxpulpv3-ilp32f-gcc:
   stage: test
   script:
     - echo "Creating install directory"
-    - mkdir -p pulpv2toolchain
+    - mkdir -p pulpv3toolchain
     - echo "Running configure"
-    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - ./configure --prefix=$(pwd)/pulpv3toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
     - echo "Running tests"
     - make report-gcc || echo "suppressing error"
     # collect all dejagnu *.sum results into base directory
@@ -239,13 +239,13 @@ rv32imfcxpulpv2-ilp32f-gcc:
     reports:
       junit: "*.xml"
 
-rv32imfcxpulpv2-ilp32f-binutils:
+rv32imfcxpulpv3-ilp32f-binutils:
   stage: test
   script:
     - echo "Creating install directory"
-    - mkdir -p pulpv2toolchain
+    - mkdir -p pulpv3toolchain
     - echo "Running configure"
-    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - ./configure --prefix=$(pwd)/pulpv3toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
     - echo "Running tests"
     - make report-binutils || echo "suppressing error"
     - find . -name '*.sum' -exec cp {} $(pwd) \;
@@ -263,13 +263,13 @@ rv32imfcxpulpv2-ilp32f-binutils:
     reports:
       junit: "*.xml"
 
-rv32imfcxpulpv2-ilp32f-gdb:
+rv32imfcxpulpv3-ilp32f-gdb:
   stage: test
   script:
     - echo "Creating install directory"
-    - mkdir -p pulpv2toolchain
+    - mkdir -p pulpv3toolchain
     - echo "Running configure"
-    - ./configure --prefix=$(pwd)/pulpv2toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
+    - ./configure --prefix=$(pwd)/pulpv3toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_PULP_ARCH"
     - echo "Running tests"
     - make check-gdb || echo "suppressing error"
     - find . -name '*.sum' -exec cp {} $(pwd) \;
