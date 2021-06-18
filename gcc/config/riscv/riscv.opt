@@ -225,73 +225,122 @@ Target Bool Var(riscv_mrelax) Init(1)
 Take advantage of linker relaxations to reduce the number of instructions
 required to materialize symbol addresses.
 
-mnohwloop
-Target Mask(MASK_NOHWLOOP)
+; PULP
+; Allow manual disabling of certain pulp extensions
+
+mno-hwloop
+Target RejectNegative Mask(MASK_NOHWLOOP)
 Disable hardware loop support
 
-mnofinduct
-Target Mask(MASK_NOFINDUCT)
+mno-finduct
+Target RejectNegative Mask(MASK_NOFINDUCT)
 Disable cost function setting to favor induction scheme
 
 msloop
 Target Mask(MASK_SLOOP)
 Use long hw loop setup instead of padding with nop for loop with insn count < 3
 
-mnopostmod
-Target Mask(MASK_NOPOSTMOD)
+mno-postmod
+Target RejectNegative Mask(MASK_NOPOSTMOD)
 Disable pointer post modification support
 
-mnoindregreg
-Target Mask(MASK_NOINDREGREG)
+mno-indregreg
+Target RejectNegative Mask(MASK_NOINDREGREG)
 Disable register offset pointer load/store
 
-mnomac
-Target Mask(MASK_NOMAC)
+mno-mac
+Target RejectNegative Mask(MASK_NOMAC)
 Disable full 32x32 into 32 mac support
 
-mnopartmac
-Target Mask(MASK_NOPARTMAC)
+mno-partmac
+Target RejectNegative Mask(MASK_NOPARTMAC)
 Disable 16x16 into 32 mac support
 
-mnominmax
-Target Mask(MASK_NOMINMAX)
+mno-minmax
+Target RejectNegative Mask(MASK_NOMINMAX)
 Disable min/max support
 
-mnoabs
-Target Mask(MASK_NOABS)
+mno-abs
+Target RejectNegative Mask(MASK_NOABS)
 Disable abs support
 
-mnobitop
-Target Mask(MASK_NOBITOP)
+mno-bitop
+Target RejectNegative Mask(MASK_NOBITOP)
 Disable cnt/ff1/fl1 support
 
-; mnosext
-; Target Mask(MASK_NOSEXT)
-; Disable reg to reg sign-extending instructions
-
-mnoslet
-Target Mask(MASK_NOSLET)
+mno-slet
+Target RejectNegative Mask(MASK_NOSLET)
 Disable slet/sletu instructions
 
-mnovect
-Target Mask(MASK_NOVECT)
+mno-vect
+Target RejectNegative Mask(MASK_NOVECT)
 Disable simd support
 
-mnoclip
-Target Mask(MASK_NOCLIP)
-Disable clip/clipu. -nominmax also disable clip/clipu
+mno-clip
+Target RejectNegative Mask(MASK_NOCLIP)
+Disable clip/clipu. -mno-minmax also disable clip/clipu
 
-mnoaddsubnormround
-Target Mask(MASK_NOADDSUBNORMROUND)
+mno-addsubnormround
+Target RejectNegative Mask(MASK_NOADDSUBNORMROUND)
 Disable add/sub with norm and round
 
-mnomulmacnormround
-Target Mask(MASK_NOMULMACNORMROUND)
+mno-mulmacnormround
+Target RejectNegative Mask(MASK_NOMULMACNORMROUND)
 Disable 16x16 into 32 mul/mac  with norm and round
 
-mnoshufflepack
-Target Mask(MASK_NOSHUFFLEPACK)
+mno-shufflepack
+Target RejectNegative Mask(MASK_NOSHUFFLEPACK)
 Disable vector pack and shuffle support
+
+; PULP deprecated aliases
+mnohwloop
+Alias(mno-hwloop) Warn(%<-mnhowloop%> is deprecated. Use -mno-hwloop instead.)
+
+mnofinduct
+Alias(mno-finduct) Warn(%<-mnofinduct> is deprecated. Use -mno-finduct instead.)
+
+mnopostmod
+Alias(mno-postmod) Warn(%<-mnopostmod> is deprecated. Use -mno-postmod instead.)
+
+mnoindregreg
+Alias(mno-indregreg) Warn(%<-mnoindregreg> is deprecated. Use -mno-indregreg instead.)
+
+mnomac
+Alias(mno-mac) Warn(%<-mnomac> is deprecated. Use -mno-mac instead.)
+
+mnopartmac
+Alias(mno-partmac) Warn(%<-mnopartmac> is deprecated. Use -mno-partmac instead.)
+
+mnominmax
+Alias(mno-minmax) Warn(%<-mnominmax> is deprecated. Use -mno-minmax instead.)
+
+mnoabs
+Alias(mno-abs) Warn(%<-mnoabs> is deprecated. Use -mno-abs instead.)
+
+mnobitop
+Alias(mno-bitop) Warn(%<-mnobitop> is deprecated. Use -mno-bitop instead.)
+
+; Disables reg to reg sign-extending instructions. Breaks compiled code.
+mnosext
+WarnRemoved
+
+mnoslet
+Alias(mno-slet) Warn(%<-mnoslet> is deprecated. Use -mno-slet instead.)
+
+mnovect
+Alias(mno-vect) Warn(%<-mnovect> is deprecated. Use -mno-vect instead.)
+
+mnoclip
+Alias(mno-clip) Warn(%<-mnoclip> is deprecated. Use -mno-clip instead.)
+
+mnoaddsubnormround
+Alias(mno-addsubnormround) Warn(%<-mnoaddsubnormround> is deprecated. Use -mno-addsubnormround instead.)
+
+mnomulmacnormround
+Alias(mno-mulmacnormround) Warn(%<-mnomulmacnormround> is deprecated. Use -mno-mulmacnormround instead.)
+
+mnoshufflepack
+Alias(mno-shufflepack) Warn(%<-mnoshufflepack> is deprecated. Use -mno-shufflepack instead.)
 
 mnativeomp
 Target Mask(MASK_OPEN_NATIVE)
