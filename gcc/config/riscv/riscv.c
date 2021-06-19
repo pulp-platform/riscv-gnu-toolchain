@@ -885,7 +885,7 @@ riscv_classify_address (struct riscv_address_info *info, rtx x,
       info->reg = XEXP (x, 0);
       info->offset = XEXP (x, 1);
 
-      if (((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG && (GET_MODE_SIZE (mode) <= UNITS_PER_WORD) ) &&
+      if ((TARGET_PULP_INDREGREG && (GET_MODE_SIZE (mode) <= UNITS_PER_WORD) ) &&
           !(TARGET_HARD_FLOAT && (mode == SFmode)) &&
           ((GET_CODE(info->offset) == REG) || (GET_CODE(info->offset) == SUBREG))) {
                 info->type = ADDRESS_REG_REG;
@@ -1052,7 +1052,7 @@ riscv_const_insns (rtx x)
       }
 
     case CONST_VECTOR:
-        if ((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT && riscv_replicated_const_vector (x, -32, 31)) return 1;
+        if (TARGET_PULP_VECT && riscv_replicated_const_vector (x, -32, 31)) return 1;
     case CONST_DOUBLE:
       /* We can use x0 to load floating-point zero.  */
       return x == CONST0_RTX (GET_MODE (x)) ? 1 : 0;
@@ -1978,8 +1978,8 @@ riscv_address_cost (rtx addr, machine_mode mode,
   /* TODO: crazy ugly hack. Also the return value of riscv_address_insn is
      ignored. Since this is a cost function we can probably clean this up */
   if (riscv_address_insns (addr, mode, false)) {
-    if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD) {
-        if (TARGET_MASK_NOFINDUCT) {
+    if (TARGET_PULP_POSTMOD) {
+        if (TARGET_NOFINDUCT) {
                 riscv_classify_address (&addr_info, addr, mode, false);
                 /* Discourage *reg(reg) since this pattern decrease induction attractiviry */
                 if (addr_info.type == ADDRESS_REG_REG ||
@@ -2118,7 +2118,7 @@ riscv_output_move (rtx dest, rtx src)
         int Prefix=0;
 
         riscv_classify_address (&addr, XEXP (src, 0), word_mode, true);
-        if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG) {
+        if (TARGET_PULP_INDREGREG) {
                 if (addr.type == ADDRESS_REG_REG) Prefix = 1;
         }
         if (addr.type == ADDRESS_TINY_SYMBOL /* || addr.type == ADDRESS_REG_TINY_SYMBOL */ ) {
@@ -2141,7 +2141,7 @@ riscv_output_move (rtx dest, rtx src)
       if (src_code == CONST_INT)
 	return "li\t%0,%1";
       else if (src_code == CONST_VECTOR) {
-                if (((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT) && riscv_replicated_const_vector(src, -32, 31)) {
+                if (TARGET_PULP_VECT && riscv_replicated_const_vector(src, -32, 31)) {
                         if (GET_MODE(src)==V4QImode) return "pv.add.sci.b\t%0,x0,%W1";
                         else return "pv.add.sci.h\t%0,x0,%w1";
                 } else {
@@ -2186,7 +2186,7 @@ riscv_output_move (rtx dest, rtx src)
         int Prefix=0;
 
         riscv_classify_address (&addr, XEXP (dest, 0), word_mode, true);
-        if ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG) {
+        if (TARGET_PULP_INDREGREG) {
                 if (addr.type == ADDRESS_REG_REG) Prefix = 1;
         }
         if (addr.type == ADDRESS_TINY_SYMBOL /* || addr.type == ADDRESS_REG_TINY_SYMBOL */) {
@@ -2409,7 +2409,7 @@ riscv_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
       if (*code == EQ || *code == NE)
 	{
 	  /* TODO: this can be cleaned up */
-          if ((Pulp_Cpu>=PULP_V2) && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) &&
+          if (TARGET_PULP_BR && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) &&
               (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15)) {
 
 	  } else if (SMALL_OPERAND (-rhs))
@@ -2453,7 +2453,7 @@ riscv_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
   if (*op1 != const0_rtx) {
     /* Only force op1 into a registers if it can't be used as a small constant
        in th p.b{eq,ne}imm PULP branch */
-     if (!((Pulp_Cpu>=PULP_V2) && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) && (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15))) 
+     if (!(TARGET_PULP_BR && (*code == EQ || *code == NE) && (GET_CODE(*op1) == CONST_INT) && (INTVAL(*op1) >= -16) && (INTVAL(*op1) <= 15))) 
     	*op1 = force_reg (word_mode, *op1);
   }
 }
@@ -2827,14 +2827,14 @@ int riscv_bitmask (unsigned HOST_WIDE_INT x, int *len, machine_mode mode)
 bool riscv_bitmask_p (unsigned HOST_WIDE_INT x)
 
 {
-	return (!TARGET_MASK_NOBITOP) && riscv_bitmask (x, NULL, VOIDmode) != -1;
+	return TARGET_PULP_BITOP && riscv_bitmask (x, NULL, VOIDmode) != -1;
 }
 
 bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT x, int pos, machine_mode mode)
 
 {
 	int len, position;
-	if (!(!TARGET_MASK_NOBITOP)) return 0;
+	if (!TARGET_PULP_BITOP) return 0;
 	position = riscv_bitmask (x, &len, mode);
 	return position == 0 && len == pos;
 }
@@ -2842,7 +2842,7 @@ bool riscv_bitmask_ins_p (unsigned HOST_WIDE_INT x, int pos, machine_mode mode)
 bool riscv_bottom_bitmask_p (unsigned HOST_WIDE_INT x)
 
 {
-	return (!TARGET_MASK_NOBITOP) && riscv_bitmask (x, NULL, VOIDmode) == 0;
+	return (TARGET_PULP_BITOP) && riscv_bitmask (x, NULL, VOIDmode) == 0;
 }
 
 bool riscv_valid_permute_operands(rtx op1, rtx op2, rtx sel)
@@ -4709,7 +4709,7 @@ riscv_expand_epilogue (int style)
         if (cfun->machine->has_hardware_loops) {
                 error ("interrupt function contains hardware loop: %s", current_function_name());
         }
-        cfun->machine->contains_call = (!TARGET_MASK_NOHWLOOP && riscv_current_func_contains_call());
+        cfun->machine->contains_call = (TARGET_PULP_HWLOOP && riscv_current_func_contains_call());
         if (cfun->machine->contains_call) {
 	        warning (0, "interrupt function contains function calls: %s", current_function_name());
         }
@@ -5763,7 +5763,7 @@ static bool
 riscv_can_use_doloop_p (const widest_int &, const widest_int &,
                       unsigned int loop_depth, bool entered_at_top)
 {
-        if ((Pulp_Cpu<PULP_V1) || TARGET_MASK_NOHWLOOP) return 0;
+        if ((Pulp_Cpu<PULP_V1) || !TARGET_PULP_HWLOOP) return 0;
 
 // printf("Loop entered at top: %d\n", entered_at_top);
         return (entered_at_top && (loop_depth <= 2));
@@ -6047,7 +6047,7 @@ hwloop_optimize (hwloop_info loop)
       	last_insn = emit_insn_after (gen_forced_nop (), last_insn);
     }
 
-  if (loop->length < MIN_LOOP_LENGTH && TARGET_MASK_SLOOP) {
+  if (loop->length < MIN_LOOP_LENGTH && TARGET_PULP_SLOOP) {
 	Padding = true;
   } else {
   	while (loop->length < MIN_LOOP_LENGTH) {
@@ -6380,7 +6380,7 @@ hwloop_pattern_reg (rtx_insn *insn)
 {
   rtx reg;
 
-  if ((Pulp_Cpu<PULP_V1) || TARGET_MASK_NOHWLOOP || !JUMP_P (insn) || recog_memoized (insn) != CODE_FOR_loop_end)
+  if ((Pulp_Cpu<PULP_V1) || !TARGET_PULP_HWLOOP || !JUMP_P (insn) || recog_memoized (insn) != CODE_FOR_loop_end)
     return NULL_RTX;
 
   reg = SET_DEST (XVECEXP (PATTERN (insn), 0, 1));

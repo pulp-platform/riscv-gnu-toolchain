@@ -5,7 +5,7 @@
         (unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r,r") (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPECV_READ_EVU)
    )
   ]
-  "(Pulp_Cpu>=PULP_V2 || Pulp_Cpu==PULP_SLIM)"
+  "TARGET_PULP_ELW"
   "@
    p.elw \t%0,%2(%1)\t# Load from Event Unit
    p.elw \t%0,%2(%1)\t# Load from Event Unit"

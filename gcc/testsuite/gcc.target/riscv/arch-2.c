@@ -3,3 +3,4 @@
 int foo()
 {
 }
+/* { dg-warning "unknown extension" "" { target *-*-* } 0 } */

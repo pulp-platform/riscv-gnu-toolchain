@@ -18,7 +18,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "TARGET_PULP_ADDSUBRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.add<norm_sign>N \t%0,%1,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -35,7 +35,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "TARGET_PULP_ADDSUBRN"
   "p.add<norm_sign>Nr \t%0,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -52,7 +52,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], NULL, 31))"
+  "TARGET_PULP_ADDSUBRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.sub<norm_sign>N \t%0,%1,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -69,7 +69,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "TARGET_PULP_ADDSUBRN"
   "p.sub<norm_sign>Nr \t%0,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -89,7 +89,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "TARGET_PULP_ADDSUBRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.add<norm_sign>RN \t%0,%1,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -112,7 +112,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "TARGET_PULP_ADDSUBRN"
   "p.add<norm_sign>RNr \t%0,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -132,7 +132,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31))"
+  "TARGET_PULP_ADDSUBRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.sub<norm_sign>RN \t%0,%1,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -154,7 +154,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOADDSUBNORMROUND)"
+  "TARGET_PULP_ADDSUBRN"
   "p.sub<norm_sign>RNr \t%0,%z2,%3"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]

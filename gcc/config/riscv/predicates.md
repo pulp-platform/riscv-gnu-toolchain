@@ -235,7 +235,7 @@
   (ior (match_operand 0 "register_operand")
        (and (match_code "const_int")
             (ior (match_operand 0 "const_0_operand")
-                 (match_test "((Pulp_Cpu>=PULP_V2) && (INTVAL(op)>=-16) && (INTVAL(op)<=15))")))))
+                 (match_test "(TARGET_PULP_BR && (INTVAL(op)>=-16) && (INTVAL(op)<=15))")))))
 
 (define_predicate "const_1_operand"
   (and (match_code "const_int,const_wide_int,const_double,const_vector")
@@ -278,7 +278,7 @@
 (define_predicate "nonimmediate_operand_exclude_post"
   (match_operand 0 "nonimmediate_operand")
 {
-   return (!riscv_filter_pulp_operand(op, !(Pulp_Cpu>=PULP_V0)));
+   return (!riscv_filter_pulp_operand(op, !TARGET_PULP_POSTMOD));
 })
 
 (define_predicate "signed_order_operator_wo_eq_ne"

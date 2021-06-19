@@ -402,6 +402,48 @@ riscv_subset_list::parse_std_ext (const char *p)
   return p;
 }
 
+/* Return string which contains all supported non-standard extensions in
+   canonical order.  */
+
+bool
+riscv_is_supported_pulp_ext (const char *ext)
+{
+  const char *pulp_exts[] = {
+    /* pulp extenion groupings */
+    "xpulpslim"
+    "xriscv",
+    "xpulpv",
+    "xgap",
+    /* pulp extension subsets */
+    "xpulphwloop",
+    "xpulppostmod",
+    "xpulpindregreg", /* does not affect assembly only code gen */
+    "xpulpmac",
+    "xpulppartmac",
+    "xpulpmacalt",
+    "xpulpminmax",
+    "xpulpabs",
+    "xpulpbitop",
+    "xpulpbitopsmall",
+    "xpulpslet",
+    "xpulpvectall",
+    "xpulpvect",
+    "xpulpvectshufflepack", /* does not affect assembly only code gen*/
+    "xpulpvectgap",
+    "xpulpclip",
+    "xpulpaddsubrn",
+    "xpulpmulmacrn",
+    "xpulpelw",
+    NULL
+  };
+
+  for (const char **pulp_ext = pulp_exts; *pulp_ext != 0; pulp_ext++)
+    if (!strcmp (*pulp_ext, ext))
+      return true;
+
+  return false;
+}
+
 /* Parsing function for non-standard and supervisor extensions.
 
    Return Value:
@@ -455,7 +497,14 @@ riscv_subset_list::parse_sv_or_non_std_ext (const char *p,
 
       *q = '\0';
 
-      //printf("balasr: subset=%s, major=%d, minor=%d\n", subset, major_version, minor_version);
+      /* printf("balasr: subset=%s, major=%d, minor=%d\n", subset, major_version, minor_version); */
+      /* make sure we fail when we encounter an unknown custom extension */
+      if (!riscv_is_supported_pulp_ext(subset))
+	{
+	  warning_at (m_loc, 0, "%<-march=%s%>: %s is an unknown extension",
+		    m_arch, subset);
+	}
+
       add (subset, major_version, minor_version);
       free (subset);
       p += end_of_version - subset;
@@ -547,7 +596,8 @@ riscv_arch_str ()
    dependent mask bits, in case more than one -march string is passed.  */
 
 static void
-riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
+riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
+			 location_t loc)
 {
   riscv_subset_list *subset_list;
   subset_list = riscv_subset_list::parse (isa, loc);
@@ -584,48 +634,190 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 
   /* PULP specific extension parsing
      "none"
-     "riscv"
      "pulpv0"
      "pulpv1"
      "pulpv2
      "pulpv3"
-     "gap8"
-     "pulpslim" */
-  /* TODO: instead of using the hacky pulp global struct, we should define and
-     use TARGET_PULP_"FEATURE" macros to enable subsets of the pulp extensions.
-     A "xpulpv3" would then, for example, define the appropriate set of TARGET_*
-     macros. Furthermore, we then can add flags for explicitely enable these
-     subset of the pulp extension (e.g. xpulpdsp for dsp instructions) */
+     "gap8" */
 
-  /* TODO: we don't implement this "feature" */
-  /* if (Pulp_DP_Format == PULP_DP_FORMAT32) */
-  /*   *flags |= MASK_MAP_DOUBLE_TO_FLOAT; */
+  /* assume we don't need to run in pulpv0 pulpv1 compatibility mode. -march
+     should override previous flags */
+  *pulp_flags &= ~OPTION_MASK_PULP_COMPAT;
 
-  if (subset_list->lookup("xriscv"))
+  *pulp_flags &= ~OPTION_MASK_PULP_HWLOOP;
+  if (subset_list->lookup("xpulphwloop"))
+    *pulp_flags |= OPTION_MASK_PULP_HWLOOP;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_POSTMOD;
+  if (subset_list->lookup("xpulppostmod"))
+    *pulp_flags |= OPTION_MASK_PULP_POSTMOD;
+  /* xpulppostmodv0p0 is for pulpv0 pulpv1 */
+  if (subset_list->lookup("xpulppostmod"), 0, 0)
+    *pulp_flags |= OPTION_MASK_PULP_COMPAT;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_INDREGREG;
+  if (subset_list->lookup("xpulpindregreg"))
+    *pulp_flags |= OPTION_MASK_PULP_INDREGREG;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MAC;
+  if (subset_list->lookup("xpulpmac"))
+    *pulp_flags |= OPTION_MASK_PULP_MAC;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_PARTMAC;
+  if (subset_list->lookup("xpulppartmac"))
+    *pulp_flags |= OPTION_MASK_PULP_PARTMAC;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MAC_ALT;
+  if (subset_list->lookup("xpulpmacalt"))
+    *pulp_flags |= OPTION_MASK_PULP_MAC_ALT;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MINMAX;
+  if (subset_list->lookup("xpulpminmax"))
+    *pulp_flags |= OPTION_MASK_PULP_MINMAX;
+  /* xpulpminmaxv0p0 is for pulpv0 pulpv1 */
+  if (subset_list->lookup("xpulpminmax"), 0, 0)
+    *pulp_flags |= OPTION_MASK_PULP_COMPAT;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_ABS;
+  if (subset_list->lookup("xpulpabs"))
+    *pulp_flags |= OPTION_MASK_PULP_ABS;
+  /* xpulpabsv0p0 is for pulpv0 pulpv1 */
+  if (subset_list->lookup("xpulpabs"), 0, 0)
+    *pulp_flags |= OPTION_MASK_PULP_COMPAT;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_BITOP;
+  if (subset_list->lookup("xpulpbitop"))
+    *pulp_flags |= OPTION_MASK_PULP_BITOP;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_BITOP_SMALL;
+  if (subset_list->lookup("xpulpbitopsmall"))
+    *pulp_flags |= OPTION_MASK_PULP_BITOP_SMALL;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_SLET;
+  if (subset_list->lookup("xpulpslet"))
+    *pulp_flags |= OPTION_MASK_PULP_SLET;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT;
+  if (subset_list->lookup("xpulpvect"))
+    *pulp_flags |= OPTION_MASK_PULP_VECT;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT_SHUFFLEPACK;
+  if (subset_list->lookup("xpulpvectshufflepack"))
+    *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT_GAP8;
+  if (subset_list->lookup("xpulpvectgap", 8, 0))
+    *pulp_flags |= OPTION_MASK_PULP_VECT_GAP8;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT;
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT_SHUFFLEPACK;
+  if (subset_list->lookup("xpulpvectall"))
     {
-      *flags |= MASK_MUL;
-
-      if (*flags & MASK_64BIT)
-	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
-		  "configuration", isa);
+      *pulp_flags |= OPTION_MASK_PULP_VECT;
+      *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
     }
+
+  *pulp_flags &= ~OPTION_MASK_PULP_CLIP;
+  if (subset_list->lookup("xpulpclip"))
+    *pulp_flags |= OPTION_MASK_PULP_CLIP;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_ADDSUBRN;
+  if (subset_list->lookup("xpulpaddsubrn"))
+    *pulp_flags |= OPTION_MASK_PULP_ADDSUBRN;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MULMACRN;
+  if (subset_list->lookup("xpulpmulmacrn"))
+    *pulp_flags |= OPTION_MASK_PULP_MULMACRN;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_ELW;
+  if (subset_list->lookup("xpulpelw"))
+    *pulp_flags |= OPTION_MASK_PULP_ELW;
+
+  /* groupings using the above listed subsets */
+#define PULP_EXP_GROUP_SMALL (OPTION_MASK_PULP_POSTMOD		\
+			      | OPTION_MASK_PULP_INDREGREG	\
+			      | OPTION_MASK_PULP_BITOP_SMALL	\
+			      | OPTION_MASK_PULP_MINMAX	\
+			      | OPTION_MASK_PULP_SLET		\
+			      | OPTION_MASK_PULP_MAC_ALT	\
+			      | OPTION_MASK_PULP_ELW)
+
+  /* pulpv0 (hwloops are disabled because buggy). Note we enable the backwards
+     compatibility mode */
+#define PULP_EXT_GROUP_V0 (PULP_EXP_GROUP_SMALL | OPTION_MASK_PULP_COMPAT)
+  /* pulpv1 */
+#define PULP_EXT_GROUP_V1  (PULP_EXP_GROUP_SMALL	\
+			    | OPTION_MASK_PULP_HWLOOP	\
+			    | OPTION_MASK_PULP_COMPAT)
+
+#define PULP_EXP_GROUP_LARGE (OPTION_MASK_PULP_POSTMOD			\
+			      | OPTION_MASK_PULP_INDREGREG		\
+			      | OPTION_MASK_PULP_ABS			\
+			      | OPTION_MASK_PULP_SLET			\
+			      | OPTION_MASK_PULP_MINMAX			\
+			      | OPTION_MASK_PULP_BITOP			\
+			      | OPTION_MASK_PULP_CLIP			\
+			      | OPTION_MASK_PULP_HWLOOP			\
+			      | OPTION_MASK_PULP_MAC			\
+			      | OPTION_MASK_PULP_PARTMAC		\
+			      | OPTION_MASK_PULP_MULMACRN		\
+			      | OPTION_MASK_PULP_ADDSUBRN		\
+			      | OPTION_MASK_PULP_VECT			\
+			      | OPTION_MASK_PULP_VECT_SHUFFLEPACK	\
+			      | OPTION_MASK_PULP_BR			\
+			      | OPTION_MASK_PULP_ELW)
+
+  /* pulpv2 no difference to pulpv3 except for the mul extension hack that was
+     turned into an erro*/
+#define PULP_EXT_GROUP_V2 (PULP_EXP_GROUP_LARGE)
+  /* pulpv3 */
+#define PULP_EXT_GROUP_V3 (PULP_EXP_GROUP_LARGE)
+  /* gap8 */
+#define PULP_EXT_GROUP_GAP8 (PULP_EXP_GROUP_LARGE | OPTION_MASK_PULP_VECT_GAP8)
 
   if (subset_list->lookup("xpulpv"))
     {
       if (subset_list->lookup("xpulpv", 0, 0))
 	{
-	  *flags &= ~MASK_MUL;
+	  warning_at(loc, 0, "%<-march=%s%>: pulpv0 is not supported well "
+		     "anymore.", isa);
+
+	  if (*flags & MASK_MUL)
+	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
+		       "is enabled with pulpv0. This was originally not "
+		       "allowed", isa);
+
+	  *pulp_flags &= ~PULP_EXT_GROUP_V0;
+
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V0)
-	    Pulp_Cpu = PULP_V0;
+	    {
+	      *pulp_flags |= PULP_EXT_GROUP_V0;
+
+	      Pulp_Cpu = PULP_V0;
+	    }
 	  else
 	    error("-xpulpv0: pulp architecture is already defined as %s",
 		  PulpProcessorImage(Pulp_Cpu));
 	}
       else if (subset_list->lookup("xpulpv", 1, 0))
 	{
-	  *flags &= ~MASK_MUL;
+	  warning_at(loc, 0, "%<-march=%s%>: pulpv1 is not supported well "
+		     "anymore.", isa);
+
+	  if (*flags & MASK_MUL)
+	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
+		       "is enabled with pulpv1. This was originally not "
+		       "allowed", isa);
+
+
+	  *pulp_flags &= ~PULP_EXT_GROUP_V1;
+
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V1)
-	    Pulp_Cpu = PULP_V1;
+	    {
+	      *pulp_flags |= PULP_EXT_GROUP_V1;
+
+	      Pulp_Cpu = PULP_V1;
+	    }
 	  else
 	    error("-xpulpv1: pulp architecture is already defined as %s",
 		  PulpProcessorImage(Pulp_Cpu));
@@ -633,20 +825,42 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	}
       else if (subset_list->lookup("xpulpv", 2, 0))
 	{
-	  *flags &= ~MASK_MUL;
-	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
+	  /* we remove this mul blocking hack and turn it into a warning */
+	  /* *flags &= ~MASK_MUL; */
+	  if (*flags & MASK_MUL)
+	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
+		       "is enabled with pulpv2. This was originally not "
+		       "allowed", isa);
+
+	  *pulp_flags &= ~PULP_EXT_GROUP_V2;
+
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V2)
-	    Pulp_Cpu = PULP_V2;
+	    {
+	      /* TODO: make shufflepack imply vect or error */
+	      *pulp_flags |= PULP_EXT_GROUP_V2;
+
+	      Pulp_Cpu = PULP_V2;
+	    }
 	  else
 	    error("-xpulpv2: pulp architecture is already defined as %s",
 		  PulpProcessorImage(Pulp_Cpu));
 	}
       else if (subset_list->lookup("xpulpv", 3, 0))
 	{
-	  *flags |= MASK_MUL;
-	  /* if (Pulp_DP_Format != PULP_DP_FORMAT32) */
+	  /* *flags |= MASK_MUL; */
+	  if (!(*flags & MASK_MUL))
+	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
+		       "is not enabled with pulpv3. This was originally not "
+		       "allowed. Make sure you know what you do.", isa);
+
+	  *pulp_flags &= ~PULP_EXT_GROUP_V3;
+
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V3)
-	    Pulp_Cpu = PULP_V3;
+	    {
+	      *pulp_flags |= PULP_EXT_GROUP_V3;
+
+	      Pulp_Cpu = PULP_V3;
+	    }
 	  else
 	    error("-xpulpv3: pulp architecture is already defined as %s",
 		  PulpProcessorImage(Pulp_Cpu));
@@ -665,10 +879,20 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 
   if (subset_list->lookup("xgap", 8, 0))
     {
-      *flags |= MASK_MUL;
+      /* *flags |= MASK_MUL; */
+      if (!(*flags & MASK_MUL))
+	warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
+		   "is not enabled with gap8. This was originally not "
+		   "allowed. Make sure you know what you do.", isa);
+
+      *pulp_flags &= ~PULP_EXT_GROUP_GAP8;
 
       if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
-	Pulp_Cpu = PULP_GAP8;
+	{
+	  *pulp_flags |= PULP_EXT_GROUP_GAP8;
+
+	  Pulp_Cpu = PULP_GAP8;
+	}
       else
 	error("-xgap8: pulp architecture is already defined as %s",
 	      PulpProcessorImage(Pulp_Cpu));
@@ -689,7 +913,11 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
 	      PulpProcessorImage(Pulp_Cpu));
 
       if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_SLIM)
-	Pulp_Cpu = PULP_SLIM;
+	{
+	  warning_at(loc, 0, "%<-march=%s%>: pulp_slim is not supported well "
+		     "anymore.", isa);
+	  Pulp_Cpu = PULP_SLIM;
+	}
       else
 	error("-xpulpslim: pulp architecture is already defined as %s",
 	      PulpProcessorImage(Pulp_Cpu));
@@ -700,7 +928,7 @@ riscv_parse_arch_string (const char *isa, int *flags, location_t loc)
     }
 
   /* TODO: PULP: disable indindreg forecefully since its buggy */
-  *flags |= MASK_MASK_NOINDREGREG;
+  *pulp_flags &= ~OPTION_MASK_PULP_INDREGREG;
 
   if (current_subset_list)
     delete current_subset_list;
@@ -717,10 +945,12 @@ riscv_handle_option (struct gcc_options *opts,
 		     location_t loc)
 {
   bool defined = false;
+
   switch (decoded->opt_index)
     {
     case OPT_march_:
-      riscv_parse_arch_string (decoded->arg, &opts->x_target_flags, loc);
+      riscv_parse_arch_string (decoded->arg, &opts->x_target_flags,
+			       &opts->x_pulp_target_flags, loc);
       return true;
 
     /* pulp chip parsing */
@@ -729,16 +959,19 @@ riscv_handle_option (struct gcc_options *opts,
       case PULP_CHIP_NONE:
 	break;
       case PULP_CHIP_HONEY:
-	riscv_parse_arch_string ("rv32ixpulpv0",  &opts->x_target_flags, loc);
+	riscv_parse_arch_string ("rv32ixpulpv0",  &opts->x_target_flags,
+				 &opts->x_pulp_target_flags, loc);
 	defined=true;
 	break;
       case PULP_CHIP_PULPINO:
-	riscv_parse_arch_string ("rv32ixpulpv1",  &opts->x_target_flags, loc);
+	riscv_parse_arch_string ("rv32ixpulpv1",  &opts->x_target_flags,
+				 &opts->x_pulp_target_flags, loc);
 	defined=true;
 	break;
       case PULP_CHIP_GAP8:
 	/* TODO: what is the correct arch string here? */
-	riscv_parse_arch_string ("rv32imcxgap8",  &opts->x_target_flags, loc);
+	riscv_parse_arch_string ("rv32imcxgap8",  &opts->x_target_flags,
+				 &opts->x_pulp_target_flags, loc);
 	defined=true;
 	break;
       default:

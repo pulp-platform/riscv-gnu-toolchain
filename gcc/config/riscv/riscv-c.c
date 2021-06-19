@@ -99,7 +99,8 @@ riscv_cpu_cpp_builtins (cpp_reader *pfile)
       break;
     }
 
-  if (Pulp_Cpu>=PULP_V0)
+  /* if we use any PULP extensions */
+  if (pulp_target_flags != 0)
     {
       builtin_define ("__pulp__");
       builtin_define ("__pulp");

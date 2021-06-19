@@ -8,7 +8,7 @@
   )
   (use (match_operand:SI 2 "immediate_operand" "I"))
  ]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  "lp.starti\tx%2,%1\t # loop setup, start set"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -20,7 +20,7 @@
   )
   (use (match_operand:SI 2 "immediate_operand" "I"))
  ]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  "lp.endi \tx%2,(%1)\t # loop setup, end set"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -31,7 +31,7 @@
        (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
   (use (match_operand:SI 2 "immediate_operand" "I,I"))
  ]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  "@
   lp.count  \tx%2,%1\t # loop setup, lc set
   lp.counti \tx%2,%1\t # loop setup, lc set"
@@ -46,7 +46,7 @@
        (label_ref (match_operand 3 "" "")))
   (use (match_operand:SI 4 "immediate_operand" "I,I"))
  ]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  "@
   lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set
   lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set"
@@ -58,7 +58,7 @@
  [(set (match_operand:SI 0 "register_operand" "=r")
        (unspec_volatile: SI [(match_operand:SI 1 "immediate_operand" "I")] UNSPECV_ALLOC))
  ]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  " # HW Loop prolog"
  [(set_attr "type" "move")
   (set_attr "mode" "SI")]
@@ -75,7 +75,7 @@
               (const_int -1)))
    (unspec [(const_int 0)] UNSPEC_LSETUP_END)
    (clobber (match_scratch:SI 3 "=X,&r"))]
-  "(Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP && optimize"
+  "TARGET_PULP_HWLOOP && optimize"
   "#"
   [(set_attr "length" "0")]
 ;;  [(set_attr "type"   "branch")
@@ -93,7 +93,7 @@
                  (const_int -1)))
    (unspec [(const_int 0)] UNSPEC_LSETUP_END)
    (clobber (match_scratch 3))]
-  "(Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP && reload_completed"
+  "TARGET_PULP_HWLOOP && reload_completed"
   [(const_int 0)]
 {
   if (!REG_P (operands[0]))
@@ -129,7 +129,7 @@
               (unspec [(const_int 0)] UNSPEC_LSETUP_END)
               (clobber (match_dup 2))
             ])]
-  "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+  "TARGET_PULP_HWLOOP"
 {
   /* The loop optimizer doesn't check the predicates... */
   if (GET_MODE (operands[0]) != SImode)
@@ -146,7 +146,7 @@
                       (pc)))
    (set (match_operand:SI 0 "register_operand" "=r") (plus (match_dup 2) (const_int -1)))
    (unspec [(const_int 0)] UNSPEC_LSETUP_END)]
- "((Pulp_Cpu>=PULP_V1) && !TARGET_MASK_NOHWLOOP)"
+ "TARGET_PULP_HWLOOP"
  "/* loop end %0 %l1 */ "
   [(set_attr "length" "0")]
 ;; [(set_attr "type" "branch")

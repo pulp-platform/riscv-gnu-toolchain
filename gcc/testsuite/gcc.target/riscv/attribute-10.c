@@ -4,3 +4,4 @@ int foo()
 {
 }
 /* { dg-error "unexpected ISA string at end:" "" { target { "riscv*-*-*" } } 0 } */
+/* { dg-warning "unknown extension" "" { target *-*-* } 0 } */

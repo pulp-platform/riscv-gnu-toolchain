@@ -600,10 +600,10 @@ typedef struct {
 
 /* Pulp support for post modified read/write */
 
-#define HAVE_POST_INCREMENT ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_DECREMENT ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_MODIFY_DISP ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_MODIFY_REG ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
+#define HAVE_POST_INCREMENT TARGET_PULP_POSTMOD
+#define HAVE_POST_DECREMENT TARGET_PULP_POSTMOD
+#define HAVE_POST_MODIFY_DISP TARGET_PULP_POSTMOD
+#define HAVE_POST_MODIFY_REG TARGET_PULP_POSTMOD
 
 /* Addressing modes, and classification of registers for them.  */
 

@@ -13,7 +13,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "p.cnt \t%0,%1\t# count bit set to 1"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -24,7 +24,7 @@
         (clrsb:SI (match_operand:SI 1 "register_operand" "r"))
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "p.clb \t%0, %1\t # count leading bits, int"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -37,7 +37,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "p.fl1 \t%0,%1\t# position of first set bit from msb"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -50,7 +50,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "
 {
         rtx reg = gen_reg_rtx (SImode);
@@ -68,7 +68,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "p.ff1 \t%0,%1\t# position of first set bit from lsb"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -79,7 +79,7 @@
         (parity:SI (match_operand:SI 1 "register_operand" "r"))
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+"TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
 "
 {
         emit_insn (gen_popcountsi2(operands[0], operands[1]));
@@ -102,7 +102,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r")
         (rotatert:SI (match_operand:SI 1 "register_operand" "r")
                      (match_operand:SI 2 "register_operand" "r")))]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP || TARGET_PULP_BITOP_SMALL"
   "p.ror \t%0,%1,%2\t# rotate"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]

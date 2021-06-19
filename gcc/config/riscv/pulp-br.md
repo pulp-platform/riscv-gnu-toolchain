@@ -7,7 +7,7 @@
                   (match_operand:GPR 3 "reg_or_imm5_operand" "rJYM")])
          (label_ref (match_operand 0 "" ""))
          (pc)))]
-  "(Pulp_Cpu>=PULP_V2)"
+  "TARGET_PULP_BR"
 {
   if (GET_CODE (operands[3]) == CONST_INT) {
     if ((INTVAL(operands[3]) != 0) && (INTVAL(operands[3])>=-16) && (INTVAL(operands[3])<=15)) {

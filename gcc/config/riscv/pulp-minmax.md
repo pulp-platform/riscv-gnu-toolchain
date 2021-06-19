@@ -6,7 +6,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"TARGET_PULP_MINMAX"
 "@
  p.min \t%0,%1,%2\t# signed min
  p.min \t%0,%1,x0\t# signed min 0"
@@ -21,7 +21,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"TARGET_PULP_MINMAX"
 "@
  p.max \t%0,%1,%2\t# signed max
  p.max \t%0,%1,x0\t# signed max 0"
@@ -36,7 +36,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"TARGET_PULP_MINMAX"
 "p.minu \t%0,%1,%2\t# unsigned min"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -49,7 +49,7 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
+"TARGET_PULP_MINMAX"
 "p.maxu \t%0,%1,%2\t# signed max"
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
@@ -72,8 +72,8 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
-{ return (Pulp_Cpu >= PULP_V2) ? "p.addN \t%0,%1,%z2,1" : "p.avg \t%0,%1,%z2"; }
+"TARGET_PULP_MINMAX && (TARGET_PULP_ADDSUBRN || TARGET_PULP_COMPAT)"
+{ return !TARGET_PULP_COMPAT ? "p.addN \t%0,%1,%z2,1" : "p.avg \t%0,%1,%z2"; }
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
 )
@@ -87,8 +87,8 @@
         )
    )
   ]
-"((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOMINMAX)"
-{ return (Pulp_Cpu >= PULP_V2) ? "p.adduN \t%0,%1,%z2,1" : "p.avgu \t%0,%1,%z2"; }
+"TARGET_PULP_MINMAX && (TARGET_PULP_ADDSUBRN || TARGET_PULP_COMPAT)"
+{ return !TARGET_PULP_COMPAT ? "p.adduN \t%0,%1,%z2,1" : "p.avgu \t%0,%1,%z2"; }
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
 )

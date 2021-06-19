@@ -4,3 +4,4 @@ int foo()
 {
 }
 /* { dg-final { scan-assembler ".attribute arch, \"rv32i2p0_xv5p0_xabc0p0\"" } } */
+/* { dg-warning "unknown extension" "" { target *-*-* } 0 } */

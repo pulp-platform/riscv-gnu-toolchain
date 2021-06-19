@@ -5,7 +5,7 @@
         (mem:SUBDISF (post_inc:SI (match_operand:SI 1 "register_operand" "+r")))
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "p.l<size_load_store>\t%0,<size_mem>(%1!)\t# load post inc"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -18,7 +18,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "p.l<size_load_store><u>\t%0,<size_mem>(%1!)\t# load post inc, ext"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -29,7 +29,7 @@
         (mem:SUBDISF (post_dec:SI (match_operand:SI 1 "register_operand" "+r")))
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "p.l<size_load_store>\t%0,-<size_mem>(%1!)\t# load post dec"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -42,7 +42,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "p.l<size_load_store><u>\t%0,-<size_mem>(%1!)\t# load post dec, ext"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -55,7 +55,7 @@
                                      (plus:SI (match_dup 1) (match_operand:SI 2 "nonmemory_operand" "r,I"))))
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "@
    p.l<size_load_store>\t%0,%2(%1!)\t# load post modify reg
    p.l<size_load_store>\t%0,%2(%1!)\t# load post modify imm"
@@ -71,7 +71,7 @@
         )
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "@
    p.l<size_load_store><u>\t%0,%2(%1!)\t# load post modify reg, ext
    p.l<size_load_store><u>\t%0,%2(%1!)\t# load post modify imm, ext"
@@ -84,7 +84,7 @@
         (match_operand:SUBDISF 1 "nonmemory_operand" "r,J")
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "@
    p.s<size_load_store>\t%1,<size_mem>(%0!)\t# store post inc
    p.s<size_load_store>\tx0,<size_mem>(%0!)\t# store 0 post inc"
@@ -97,7 +97,7 @@
         (match_operand:SUBDISF 1 "nonmemory_operand" "r,J")
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "@
    p.s<size_load_store>\t%1,-<size_mem>(%0!)\t# store post dec
    p.s<size_load_store>\tx0,-<size_mem>(%0!)\t# store 0 post dec"
@@ -111,7 +111,7 @@
         (match_operand:SUBDISF 1 "nonmemory_operand" "r,J,r,J")
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)"
+  "TARGET_PULP_POSTMOD"
   "@
    p.s<size_load_store>\t%1,%2(%0!)\t# store post modify reg
    p.s<size_load_store>\tx0,%2(%0!)\t# store 0 post modify reg

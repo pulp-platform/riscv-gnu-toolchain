@@ -681,10 +681,9 @@
   [(set (match_operand:SI          0 "register_operand" "=r")
 	(mult:SI (match_operand:SI 1 "register_operand" " r")
 		 (match_operand:SI 2 "register_operand" " r")))]
-  "(Pulp_Cpu>=PULP_V0) || TARGET_MUL || (Pulp_Cpu==PULP_SLIM)"
+  "TARGET_MUL"
   {
         if (TARGET_64BIT) return "mulw\t%0,%1,%2";
-        else if (Pulp_Cpu) return "p.mul\t%0,%1,%2";
         else return "mul\t%0,%1,%2";
   }
   [(set_attr "type" "imul")
@@ -797,7 +796,7 @@
 		   (match_operand:SI 1 "register_operand" " r"))
 		 (any_extend:DI
 		   (match_operand:SI 2 "register_operand" " r"))))]
-  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
+  "TARGET_MUL && !TARGET_64BIT"
 {
   rtx temp = gen_reg_rtx (SImode);
   emit_insn (gen_mulsi3 (temp, operands[1], operands[2]));
@@ -816,11 +815,8 @@
 		     (any_extend:DI
 		       (match_operand:SI 2 "register_operand" " r")))
 	    (const_int 32))))]
-  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
-  {
-        if (Pulp_Cpu) return "p.mulh<u>\t%0,%1,%2";
-        else return "mulh<u>\t%0,%1,%2";
-  }
+  "TARGET_MUL && !TARGET_64BIT"
+  "mulh<u>\t%0,%1,%2"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")])
 
@@ -831,7 +827,7 @@
 		   (match_operand:SI 1 "register_operand" " r"))
 		 (sign_extend:DI
 		   (match_operand:SI 2 "register_operand" " r"))))]
-  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
+  "TARGET_MUL && !TARGET_64BIT"
 {
   rtx temp = gen_reg_rtx (SImode);
   emit_insn (gen_mulsi3 (temp, operands[1], operands[2]));
@@ -850,11 +846,8 @@
 		     (sign_extend:DI
 		       (match_operand:SI 2 "register_operand" " r")))
 	    (const_int 32))))]
-  "(TARGET_MUL||(Pulp_Cpu>=PULP_V2)||(Pulp_Cpu==PULP_SLIM)) && !TARGET_64BIT"
-  {
-        if (Pulp_Cpu) return "p.mulhsu\t%0,%1,%1";
-        else return "mulhsu\t%0,%2,%1";
-  }
+  "TARGET_MUL && !TARGET_64BIT"
+  "mulhsu\t%0,%2,%1"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")])
 
@@ -870,8 +863,8 @@
   [(set (match_operand:SI             0 "register_operand" "=r")
 	(any_div:SI (match_operand:SI 1 "register_operand" " r")
 		    (match_operand:SI 2 "register_operand" " r")))]
-  "(TARGET_DIV || ((Pulp_Cpu >= PULP_V2)||(Pulp_Cpu==PULP_SLIM)))"
-  { return TARGET_64BIT ? "<insn>%i2w\t%0,%1,%2" : Pulp_Cpu?"p.<insn>\t%0,%1,%2":"<insn>%i2\t%0,%1,%2"; }
+  "TARGET_DIV"
+  { return TARGET_64BIT ? "<insn>%i2w\t%0,%1,%2" : "<insn>%i2\t%0,%1,%2"; }
   [(set_attr "type" "idiv")
    (set_attr "mode" "SI")])
 
@@ -1039,7 +1032,7 @@
 (define_insn "abssi2"
   [(set (match_operand:SI 0 "register_operand" "=r")
         (abs:SI (match_operand:SI 1 "register_operand" "r")))]
-  "(Pulp_Cpu>=PULP_V0)"
+  "TARGET_PULP_ABS"
   "p.abs\t%0,%1"
   [(set_attr "type" "arith")
    (set_attr "mode" "SI")])
@@ -1503,18 +1496,19 @@
 (define_expand "movv2hi"
   [(set (match_operand:V2HI 0 "")
         (match_operand:V2HI 1 ""))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "TARGET_PULP_VECT"
 {
   if (riscv_legitimize_move (V2HImode, operands[0], operands[1]))
     DONE;
 })
 
+;; TODO: gate behind TARGET_PULP_VECT ?
 (define_insn "movv2hi_internal"
   [(set (match_operand:V2HI 0 "nonimmediate_operand" "=r,r,r,m")
         (match_operand:V2HI 1 "move_operand" "r,T,m,rJ"))]
   "(register_operand (operands[0], V2HImode) || reg_or_0_operand (operands[1], V2HImode)) &&
-    !riscv_filter_pulp_operand(operands[0], !(Pulp_Cpu>=PULP_V0)) &&
-    !riscv_filter_pulp_operand(operands[1], !(Pulp_Cpu>=PULP_V0))"
+    !riscv_filter_pulp_operand(operands[0], false) &&
+    !riscv_filter_pulp_operand(operands[1], false)"
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store")
    (set_attr "mode" "V2HI")])
@@ -1524,29 +1518,29 @@
 (define_expand "movv4qi"
   [(set (match_operand:V4QI 0 "")
         (match_operand:V4QI 1 ""))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOVECT)"
+  "TARGET_PULP_VECT"
 {
   if (riscv_legitimize_move (V4QImode, operands[0], operands[1]))
     DONE;
 })
 
+;; TODO: gate behind TARGET_PULP_VECT ?
 (define_insn "movv4qi_internal"
   [(set (match_operand:V4QI 0 "nonimmediate_operand" "=r,r,r,m")
         (match_operand:V4QI 1 "move_operand" "r,T,m,rJ"))]
   "(register_operand (operands[0], V4QImode) || reg_or_0_operand (operands[1], V4QImode)) &&
-    !riscv_filter_pulp_operand(operands[0], !(Pulp_Cpu>=PULP_V0)) &&
-    !riscv_filter_pulp_operand(operands[1], !(Pulp_Cpu>=PULP_V0))"
+    !riscv_filter_pulp_operand(operands[0], false) &&
+    !riscv_filter_pulp_operand(operands[1], false)"
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store")
    (set_attr "mode" "V4QI")])
 
 ;; TODO: somehow this allows the memmove in memmove-4.c to be inlined resulting
-;; in a XPASS. For now we gate this behind PULP_V2 until we understand this
-;; better. This pattern is also used by the autovectorizer
+;; in a XPASS. This pattern is also used by the autovectorizer
 (define_expand "movmisalign<mode>"
  [(set (match_operand:MODE_PULP 0 "nonimmediate_operand" "")
        (match_operand:MODE_PULP 1 "general_operand" ""))]
- "Pulp_Cpu>=PULP_V2 && !TARGET_MASK_NOVECT"
+ "TARGET_PULP_VECT"
 {
   emit_move_insn (operands[0], operands[1]);
   DONE;
@@ -2455,7 +2449,7 @@
 
 (define_insn "simple_ith_return"
   [(unspec [(return)] UNSPEC_ITH)]
-  "(Pulp_Cpu>=PULP_V2)"
+  ""
   "hret"
   [(set_attr "type"     "jump")
    (set_attr "mode"     "none")])

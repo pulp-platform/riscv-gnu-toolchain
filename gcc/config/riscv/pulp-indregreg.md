@@ -4,7 +4,7 @@
                               (match_operand:SI 2 "register_operand" "r")))
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "TARGET_PULP_INDREGREG"
   "p.l<size_load_store>\t%0,%2(%1)\t# load reg(reg)"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -16,7 +16,7 @@
                                      (match_operand:SI 2 "register_operand" "r"))))
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "TARGET_PULP_INDREGREG"
   "p.l<size_load_store><u>\t%0,%2(%1)\t# load reg(reg), ext"
   [(set_attr "type" "load")
    (set_attr "mode" "<LDSTINDMODE>")]
@@ -28,7 +28,7 @@
         (match_operand:SUBDISF 2 "nonmemory_operand" "r,J")
    )
   ]
-  "((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOINDREGREG)"
+  "TARGET_PULP_INDREGREG"
   "@
    p.s<size_load_store>\t%2,%1(%0)\t# store reg(reg)
    p.s<size_load_store>\tx0,%1(%0)\t# store 0 reg(reg)"
