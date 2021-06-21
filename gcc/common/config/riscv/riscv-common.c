@@ -231,6 +231,7 @@ riscv_subset_list::parsing_subset_version (const char *p,
 					   bool std_ext_p)
 {
   bool major_p = true;
+  bool assigned = false;
   unsigned version = 0;
   unsigned major = 0;
   unsigned minor = 0;
@@ -264,7 +265,10 @@ riscv_subset_list::parsing_subset_version (const char *p,
 	  version = 0;
 	}
       else if (ISDIGIT (*p))
-	version = (version * 10) + (*p - '0');
+	{
+	  version = (version * 10) + (*p - '0');
+	  assigned = true;
+	}
       else
 	break;
     }
@@ -274,7 +278,7 @@ riscv_subset_list::parsing_subset_version (const char *p,
   else
     minor = version;
 
-  if (major == 0 && minor == 0)
+  if ((major == 0 && minor == 0) && !assigned)
     {
       /* We didn't find any version string, use default version.  */
       *major_version = default_major_version;
@@ -489,9 +493,7 @@ riscv_subset_list::parse_sv_or_non_std_ext (const char *p,
 
       end_of_version
 	= parsing_subset_version (q, &major_version, &minor_version,
-				  /* PULP: we need this to be 0, so that we can
-				     distinguish pulpv0 and pulpv2 */
-				  /* default_major_version= */ 0,
+				  /* default_major_version= */ 2,
 				  /* default_minor_version= */ 0,
 				  /* std_ext_p= */ FALSE);
 
