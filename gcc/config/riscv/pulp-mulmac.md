@@ -14,7 +14,7 @@
         (mult:SI (any_extend:SI (match_operand:SHORT 1 "register_operand" "r"))
                  (any_extend:SI (match_operand:SHORT 2 "register_operand" "r")))
    )]
-"TARGET_PULP_MAC"
+"TARGET_PULP_MULRN_HI"
 "p.mul<su_mod> \t%0,%1,%2"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -30,7 +30,7 @@
         )
    )
   ]
-  "TARGET_PULP_MAC"
+  "TARGET_PULP_MULRN_HI"
   "p.mulsN \t%0,%1,%2,16\t # mul16x16 into 32 with right shift 16"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -46,7 +46,7 @@
         )
    )
   ]
-  "TARGET_PULP_MAC"
+  "TARGET_PULP_MULRN_HI"
   "p.muluN \t%0,%1,%2,16\t # uns mul16x16 into 32 with right logical shift 16"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -61,7 +61,7 @@
         )
    )
   ]
-  "TARGET_PULP_MAC"
+  "TARGET_PULP_MULRN_HI"
   "p.mulhhs \t%0,%1,%2"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -74,7 +74,7 @@
         )
    )
   ]
-  "TARGET_PULP_MAC"
+  "TARGET_PULP_MULRN_HI"
   "p.mulhhu \t%0,%1,%2"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -100,7 +100,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.mulsN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -119,7 +119,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.mulsRN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -141,7 +141,7 @@
 	)
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 15)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], operands[4], 15)"
   "p.mulsRN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -160,7 +160,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.muluN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -179,7 +179,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.muluRN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -195,7 +195,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.mulhhsN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -211,7 +211,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], NULL, 31)"
   "p.mulhhuN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -230,7 +230,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.mulhhsRN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -249,7 +249,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
+  "TARGET_PULP_MULRN_HI && riscv_valid_norm_round_imm_op(operands[3], operands[4], 31)"
   "p.mulhhuRN \t%0,%1,%2,%3"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -400,7 +400,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
   "p.macsN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -419,7 +419,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
   "p.macuN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -441,7 +441,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
   "p.macsRN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -463,7 +463,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
   "p.macuRN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -482,7 +482,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
   "p.machhsN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -501,7 +501,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], NULL, 31)"
   "p.machhuN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -523,7 +523,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
   "p.machhsRN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -545,7 +545,7 @@
         )
    )
   ]
-  "TARGET_PULP_MULMACRN && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
+  "TARGET_PULP_MACRN_HI && riscv_valid_norm_round_imm_op(operands[4], operands[5], 31)"
   "p.machhuRN \t%0,%1,%2,%4"
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")]
@@ -567,7 +567,7 @@
                  (match_operand:SI 3 "register_operand" "r,0"))
    )
   ]
-"TARGET_PULP_MAC"
+"TARGET_PULP_MAC_SI"
 "@
  p.mac \t%0,%1,%2,%3\t# mac 32x32 in 32 instruction
  p.mac \t%0,%1,%2\t# mac 32x32 in 32 instruction"
@@ -583,7 +583,7 @@
 	)
    )
   ]
-"TARGET_PULP_MAC"
+"TARGET_PULP_MAC_SI"
 "p.msu \t%0,%1,%2\t# mac 32x32 in 32 instruction"
 [(set_attr "type" "imul")
  (set_attr "mode" "SI")]

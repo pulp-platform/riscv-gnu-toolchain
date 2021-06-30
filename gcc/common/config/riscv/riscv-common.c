@@ -425,6 +425,9 @@ riscv_is_supported_pulp_ext (const char *ext)
     "xpulpmac",
     "xpulppartmac",
     "xpulpmacalt",
+    "xpulpmacsi",
+    "xpulpmacrnhi",
+    "xpulpmulrnhi",
     "xpulpminmax",
     "xpulpabs",
     "xpulpbitop",
@@ -434,9 +437,9 @@ riscv_is_supported_pulp_ext (const char *ext)
     "xpulpvect",
     "xpulpvectshufflepack", /* does not affect assembly only code gen*/
     "xpulpvectgap",
+    "xpulpbr",
     "xpulpclip",
     "xpulpaddsubrn",
-    "xpulpmulmacrn",
     "xpulpelw",
     NULL
   };
@@ -661,9 +664,17 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   if (subset_list->lookup("xpulpindregreg"))
     *pulp_flags |= OPTION_MASK_PULP_INDREGREG;
 
-  *pulp_flags &= ~OPTION_MASK_PULP_MAC;
-  if (subset_list->lookup("xpulpmac"))
-    *pulp_flags |= OPTION_MASK_PULP_MAC;
+  *pulp_flags &= ~OPTION_MASK_PULP_MAC_SI;
+  if (subset_list->lookup("xpulpmacsi"))
+    *pulp_flags |= OPTION_MASK_PULP_MAC_SI;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MULRN_HI;
+  if (subset_list->lookup("xpulpmulrnhi"))
+    *pulp_flags |= OPTION_MASK_PULP_MULRN_HI;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_MACRN_HI;
+  if (subset_list->lookup("xpulpmacrnhi"))
+    *pulp_flags |= OPTION_MASK_PULP_MACRN_HI;
 
   *pulp_flags &= ~OPTION_MASK_PULP_PARTMAC;
   if (subset_list->lookup("xpulppartmac"))
@@ -727,16 +738,12 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   if (subset_list->lookup("xpulpaddsubrn"))
     *pulp_flags |= OPTION_MASK_PULP_ADDSUBRN;
 
-  *pulp_flags &= ~OPTION_MASK_PULP_MULMACRN;
-  if (subset_list->lookup("xpulpmulmacrn"))
-    *pulp_flags |= OPTION_MASK_PULP_MULMACRN;
-
   *pulp_flags &= ~OPTION_MASK_PULP_ELW;
   if (subset_list->lookup("xpulpelw"))
     *pulp_flags |= OPTION_MASK_PULP_ELW;
 
   /* groupings using the above listed subsets */
-#define PULP_EXP_GROUP_SMALL (OPTION_MASK_PULP_POSTMOD		\
+#define PULP_EXT_GROUP_SMALL (OPTION_MASK_PULP_POSTMOD		\
 			      | OPTION_MASK_PULP_INDREGREG	\
 			      | OPTION_MASK_PULP_BITOP_SMALL	\
 			      | OPTION_MASK_PULP_MINMAX	\
@@ -746,9 +753,9 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
 
   /* pulpv0 (hwloops are disabled because buggy). Note we enable the backwards
      compatibility mode */
-#define PULP_EXT_GROUP_V0 (PULP_EXP_GROUP_SMALL | OPTION_MASK_PULP_COMPAT)
+#define PULP_EXT_GROUP_V0 (PULP_EXT_GROUP_SMALL | OPTION_MASK_PULP_COMPAT)
   /* pulpv1 */
-#define PULP_EXT_GROUP_V1  (PULP_EXP_GROUP_SMALL	\
+#define PULP_EXT_GROUP_V1  (PULP_EXT_GROUP_SMALL	\
 			    | OPTION_MASK_PULP_HWLOOP	\
 			    | OPTION_MASK_PULP_COMPAT)
 
@@ -760,9 +767,10 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
 			      | OPTION_MASK_PULP_BITOP			\
 			      | OPTION_MASK_PULP_CLIP			\
 			      | OPTION_MASK_PULP_HWLOOP			\
-			      | OPTION_MASK_PULP_MAC			\
+			      | OPTION_MASK_PULP_MAC_SI			\
+			      | OPTION_MASK_PULP_MACRN_HI		\
+			      | OPTION_MASK_PULP_MULRN_HI		\
 			      | OPTION_MASK_PULP_PARTMAC		\
-			      | OPTION_MASK_PULP_MULMACRN		\
 			      | OPTION_MASK_PULP_ADDSUBRN		\
 			      | OPTION_MASK_PULP_VECT			\
 			      | OPTION_MASK_PULP_VECT_SHUFFLEPACK	\

@@ -182,10 +182,10 @@ Target Report RejectNegative Joined
 -march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
 lower-case. The following extensions are available: xpulpv0, xpulpv1, xpulpv2,
 xpulpv3, xgap8. Alternatively, more fine grained subsets can be selected with:
-xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmac, xpulppartmac,
-xpulpmacsmall, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall, xpulpslet,
-xpulpvect, xpulpvectshufflepack, xpulpvectgap8, xpulpvectall, xpulpclip,
-xpulpaddsubrn, xpulpmulmacrn.
+xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
+xpulppartmac, xpulpmacsmall, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
+xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectgap8, xpulpvectall, xpulpclip,
+xpulpaddsubrn
 The following extensions are only meant for pulpv0 and pulpv1 for
 compatibility reasons:
 xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
@@ -251,9 +251,17 @@ mpulp-indregreg
 Target Mask(PULP_INDREGREG) Var(pulp_target_flags)
 Use PULP register offset load/store instructions
 
-mpulp-mac
-Target Mask(PULP_MAC) Var(pulp_target_flags)
+mpulp-mac-si
+Target Mask(PULP_MAC_SI) Var(pulp_target_flags)
 Use PULP multiply accumulate instructions (32x32 into 32)
+
+mpulp-mulrn-hi
+Target Mask(PULP_MULRN_HI) Var(pulp_target_flags)
+Use PULP multiply instructions with norm/round (16x16 into 32)
+
+mpulp-macrn-hi
+Target Mask(PULP_MACRN_HI) Var(pulp_target_flags)
+Use PULP multiply accumulate instructions with norm/round (16x16 into 32)
 
 mpulp-partmac
 Target Mask(PULP_PARTMAC) Var(pulp_target_flags)
@@ -299,10 +307,6 @@ mpulp-addsubrn
 Target Mask(PULP_ADDSUBRN) Var(pulp_target_flags)
 Use PULP add/sub with norm/round instructions
 
-mpulp-mulmacrn
-Target Mask(PULP_MULMACRN) Var(pulp_target_flags)
-Use PULP multiply accumulate with norm/round instructions (16x16 into 32)
-
 mpulp-vectshufflepack
 Target Mask(PULP_VECT_SHUFFLEPACK) Var(pulp_target_flags)
 Use PULP SIMD shuffle and pack instructions
@@ -345,7 +349,7 @@ mnoindregreg
 Target Alias(mpulp-indregreg) NegativeAlias Warn(%<-mnoindregreg%> is deprecated. Use -mno-pulp-indregreg instead.)
 
 mnomac
-Target Alias(mpulp-mac) NegativeAlias Warn(%<-mnomac%> is deprecated. Use -mno-pulp-mac instead.)
+Target Alias(mpulp-mac-si) NegativeAlias Warn(%<-mnomac%> is deprecated. Use -mno-pulp-mac-si instead.)
 
 mnopartmac
 Target Alias(mpulp-partmac) NegativeAlias Warn(%<-mnopartmac%> is deprecated. Use -mno-pulp-partmac instead.)
@@ -375,8 +379,8 @@ Target Alias(mpulp-clip) NegativeAlias Warn(%<-mnoclip%> is deprecated. Use -mno
 mnoaddsubnormround
 Target Alias(mpulp-addsubrn) NegativeAlias Warn(%<-mnoaddsubnormround%> is deprecated. Use -mno-pulp-addsubrn instead.)
 
-mnomulmacnormround
-Target Alias(mpulp-mulmacrn) NegativeAlias Warn(%<-mnomulmacnormround%> is deprecated. Use -mno-pulp-mulmacrn instead.)
+; mnomulmacnormround
+; Target Alias(mpulp-mulmacrn) NegativeAlias Warn(%<-mnomulmacnormround%> is deprecated. Use -mno-pulp-mulmacrn instead.)
 
 mnoshufflepack
 Target Alias(mpulp-vectshufflepack) NegativeAlias Warn(%<-mnoshufflepack%> is deprecated. Use -mno-pulp-vectshufflepack instead.)
