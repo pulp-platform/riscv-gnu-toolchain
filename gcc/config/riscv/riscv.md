@@ -85,6 +85,9 @@
   UNSPEC_ITM
 
   UNSPEC_READSI_NONVOL
+
+  ;; PULP cbl
+  UNSPEC_PULP_CLB
 ])
 
 (define_c_enum "unspecv" [
