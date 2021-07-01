@@ -24,19 +24,6 @@
 HeaderInclude
 config/riscv/riscv-opts.h
 
-; Enum
-; Name(Pulp_DP_Format_Type) Type(enum Pulp_DP_Format_Type)
-; Possible types for -mfpdouble=option
-;
-; EnumValue
-; Enum(Pulp_DP_Format_Type) String(double) Value(PULP_DP_FORMAT64)
-;
-; EnumValue
-; Enum(Pulp_DP_Format_Type) String(float) Value(PULP_DP_FORMAT32)
-;
-; mfpdouble=
-; Target RejectNegative Joined Enum(Pulp_DP_Format_Type) Var(Pulp_DP_Format) Init(PULP_DP_FORMAT64)
-; Specify which format for double
 
 Enum
 Name(Pulp_Chip_Config_Type) Type(enum Pulp_Chip_Config_Type)
@@ -50,10 +37,6 @@ Enum(Pulp_Chip_Config_Type) String(fc) Value(PULP_CHIP_CONFIG_FC)
 EnumValue
 Enum(Pulp_Chip_Config_Type) String(all) Value(PULP_CHIP_CONFIG_ALL)
 
-mconf=
-Target RejectNegative Joined Var(Pulp_Chip_Config) Enum(Pulp_Chip_Config_Type) Init(PULP_CHIP_CONFIG_ALL)
--mconf=CONF, Conf= all, fc, cluster, default is all.
-
 Enum
 Name(Pulp_Chip_Type) Type(enum Pulp_Chip_Type)
 EnumValue
@@ -62,10 +45,8 @@ Enum(Pulp_Chip_Type) String(honey) Value(PULP_CHIP_HONEY)
 EnumValue
 Enum(Pulp_Chip_Type) String(pulpino) Value(PULP_CHIP_PULPINO)
 
-;; __GAP8 Start
 EnumValue
 Enum(Pulp_Chip_Type) String(gap8) Value(PULP_CHIP_GAP8)
-;; __GAP8 Stop
 
 mchip=
 Target RejectNegative Joined Var(Pulp_Chip) Enum(Pulp_Chip_Type) Init(PULP_CHIP_NONE)
@@ -84,11 +65,8 @@ Enum(Pulp_Processor_Type) String(pulpv1) Value(PULP_V1)
 EnumValue
 Enum(Pulp_Processor_Type) String(pulpv2) Value(PULP_V2)
 
-;; __GAP8 Start
-
 EnumValue
 Enum(Pulp_Processor_Type) String(gap8) Value(PULP_GAP8)
-;; __GAP8 Stop
 
 EnumValue
 Enum(Pulp_Processor_Type) String(pulpv3) Value(PULP_V3)
@@ -108,25 +86,9 @@ mFC=
 Target RejectNegative Joined UInteger Var(_Pulp_FC) Init(0) Deprecated
 -mFC=           0: without FC, 1: with FC.
 
-mL2=
-Target RejectNegative Joined UInteger Var(_Pulp_L2_Size) Init(0) Deprecated
--mL2=SIZE       Set L2 size to SIZE, Init to 0.
-
-mL1Cl=
-Target RejectNegative Joined UInteger Var(_Pulp_L1_Cluster_Size) Init(0) Deprecated
--mL1Cl=SIZE     Set Cluster L1 size to SIZE, Init to 0.
-
-mL1Fc=
-Target RejectNegative Joined UInteger Var(_Pulp_L1_FC_Size) Init(0) Deprecated
--mL1c=SIZE      Set Fabric Controller L1 size to SIZE, Init to 0.
-
 mreg=
 Target RejectNegative Joined UInteger Var(Pulp_Number_Of_Reg) Init(32)
 Use only the mreg first registers of the integer register file, minimum is 16 and default is 32
-
-; mdf
-; Target RejectNegative Mask(MAP_DOUBLE_TO_FLOAT)
-; Internal flag for double mapped on float
 
 mbranch-cost=
 Target RejectNegative Joined UInteger Var(riscv_branch_cost)
@@ -180,12 +142,12 @@ Use hardware instructions for integer division.
 march=
 Target Report RejectNegative Joined
 -march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
-lower-case. The following extensions are available: xpulpv0, xpulpv1, xpulpv2,
+lower-case. The following extensions groups are available: xpulpv0, xpulpv1, xpulpv2,
 xpulpv3, xgap8. Alternatively, more fine grained subsets can be selected with:
 xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
-xpulppartmac, xpulpmacsmall, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
+xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
 xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectgap8, xpulpvectall, xpulpclip,
-xpulpaddsubrn
+xpulpaddsubrn.
 The following extensions are only meant for pulpv0 and pulpv1 for
 compatibility reasons:
 xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
@@ -388,22 +350,6 @@ Target Alias(mpulp-vectshufflepack) NegativeAlias Warn(%<-mnoshufflepack%> is de
 mnativeomp
 Target Mask(MASK_OPEN_NATIVE)
 Enable Native Mapping of OpenMP runtime
-
-mWci
-Target Var(WARN_CINFO) Deprecated
-Emit warnings when conflicting .Chip_Info.Info sections are found at link time without aborting link.
-
-mEci
-Target Var(ERR_CINFO) Deprecated
-Emit warnings when conflicting .Chip_Info.Info sections are found at link time and abort link.
-
-mComp
-Target Var(LINK_COMP) Deprecated
-Link in component mode
-
-mDIE=
-Target RejectNegative Joined UInteger Var(LINK_DUMP_IE_SECT) Init(0) Deprecated
-Dump content of import and export sections, 0: no dump, 1 dump only, 2 C equiv, 3 dump and C equiv
 
 Mask(64BIT)
 

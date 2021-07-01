@@ -954,8 +954,6 @@ riscv_handle_option (struct gcc_options *opts,
 		     const struct cl_decoded_option *decoded,
 		     location_t loc)
 {
-  bool defined = false;
-
   switch (decoded->opt_index)
     {
     case OPT_march_:
@@ -971,29 +969,18 @@ riscv_handle_option (struct gcc_options *opts,
       case PULP_CHIP_HONEY:
 	riscv_parse_arch_string ("rv32ixpulpv0",  &opts->x_target_flags,
 				 &opts->x_pulp_target_flags, loc);
-	defined=true;
 	break;
       case PULP_CHIP_PULPINO:
 	riscv_parse_arch_string ("rv32ixpulpv1",  &opts->x_target_flags,
 				 &opts->x_pulp_target_flags, loc);
-	defined=true;
 	break;
       case PULP_CHIP_GAP8:
 	/* TODO: what is the correct arch string here? */
 	riscv_parse_arch_string ("rv32imcxgap8",  &opts->x_target_flags,
 				 &opts->x_pulp_target_flags, loc);
-	defined=true;
 	break;
       default:
 	break;
-      }
-      if (defined) {
-	/* TODO: remove global struct hack */
-	_Pulp_FC = Pulp_Defined_Chips[decoded->value].Pulp_FC;
-	_Pulp_PE = Pulp_Defined_Chips[decoded->value].Pulp_PE;
-	_Pulp_L2_Size = Pulp_Defined_Chips[decoded->value].Pulp_L2_Size;
-	_Pulp_L1_Cluster_Size = Pulp_Defined_Chips[decoded->value].Pulp_L1_Cluster_Size;
-	_Pulp_L1_FC_Size = Pulp_Defined_Chips[decoded->value].Pulp_L1_FC_Size;
       }
       return true;
 
