@@ -414,10 +414,9 @@ riscv_is_supported_pulp_ext (const char *ext)
 {
   const char *pulp_exts[] = {
     /* pulp extenion groupings */
-    "xpulpslim"
-    "xriscv",
     "xpulpv",
     "xgap",
+    "xcorev",
     /* pulp extension subsets */
     "xpulphwloop",
     "xpulppostmod",
@@ -784,6 +783,8 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
 #define PULP_EXT_GROUP_V3 (PULP_EXP_GROUP_LARGE)
   /* gap8 */
 #define PULP_EXT_GROUP_GAP8 (PULP_EXP_GROUP_LARGE | OPTION_MASK_PULP_VECT_GAP8)
+  /* cv32e40p */
+#define COREV_EXT_GROUP (PULP_EXP_GROUP_LARGE)
 
   if (subset_list->lookup("xpulpv"))
     {
@@ -912,29 +913,13 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
 		  "configuration", isa);
     }
 
-
-  if (subset_list->lookup("xpulpslim"))
+  if (subset_list->lookup("xcorev"))
     {
-
-      if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
-	Pulp_Cpu = PULP_GAP8;
-      else
-	error("-xgap8: pulp architecture is already defined as %s",
-	      PulpProcessorImage(Pulp_Cpu));
-
-      if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_SLIM)
-	{
-	  warning_at(loc, 0, "%<-march=%s%>: pulp_slim is not supported well "
-		     "anymore.", isa);
-	  Pulp_Cpu = PULP_SLIM;
-	}
-      else
-	error("-xpulpslim: pulp architecture is already defined as %s",
-	      PulpProcessorImage(Pulp_Cpu));
-
-      if (*flags & MASK_64BIT)
-	error_at (loc, "%<-march=%s%>: rv64 is not supported in this "
-		  "configuration", isa);
+      *pulp_flags &= ~COREV_EXT_GROUP;
+      *pulp_flags |= COREV_EXT_GROUP;
+      /* TODO: we should remove the whole Pulp_Cpu thing anyway, but for now we
+	 pretend to be pulpv3 for the builtins. */
+      Pulp_Cpu = PULP_V3;
     }
 
   /* TODO: PULP: disable indindreg forecefully since its buggy */
