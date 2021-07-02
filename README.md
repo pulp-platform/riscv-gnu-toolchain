@@ -8,11 +8,11 @@ This is the PULP RISC-V C and C++ cross-compiler a generic ELF/Newlib toolchain.
 
 This repository uses submodules. You need the --recursive option to fetch the submodules automatically
 
-    $ git clone --recursive https://github.com/riscv/riscv-gnu-toolchain
+    $ git clone --recursive https://iis-git.ee.ethz.ch/gnu/riscv-gnu-toolchain/
     
 Alternatively :
 
-    $ git clone https://github.com/riscv/riscv-gnu-toolchain
+    $ git clone https://iis-git.ee.ethz.ch/gnu/riscv-gnu-toolchain/
     $ cd riscv-gnu-toolchain
     $ git submodule update --init --recursive
     
@@ -87,7 +87,7 @@ devtoolset-7 works.
 There are a number of additional options that may be passed to
 configure.  See './configure --help' for more details.
 
-### Test Suite
+### Running the Test Suite
 
 The DejaGnu test suite has been ported to RISC-V.  This can run with GDB
 simulator or QEMU.
@@ -97,3 +97,32 @@ To test GCC, run the following commands:
 	make report-gcc-newlib # or make report-gcc-newlib-qemu
 	make report-binutils-newlib
 	make report-gdb-newlib
+
+### Supported PULP Extensions
+
+Read `pulp.md` for information about the supported PULP extensions. Read
+`core-v.rst` to see how these extension can be used with the cv32e40p.
+
+
+Check `riscv32-unknown-elf-gcc --target=help` for supported options in the compiler,
+`riscv32-unknown-elf-gcc-as --help` for supported options in the assembler.
+
+In the riscv-isa-manual you can check out how to write ISA strings that specify
+the enabled extensions. In general, custom extension are denoted by a leading
+`x` followed the extension name. Extension are separated by and underscore `_`
+and you can also specify version numbers by appending a string `xpy` e.g. `2p0`
+do specify version `2.0`. Here a few quick commands:
+
+* `riscv32-unknown-elf-gcc -march=rv32imfcxpulpv3 FILES`: rv32 with the `imfc`
+  standard extension and the `pulpv3` extension group.
+
+* `riscv32-unknown-elf-gcc -march=rv32imc_xpulphwloops_xpulppostmod FILES`: rv32 with
+  `imc` standard extension, pulp hardware loop and pulp load-store post modify
+  instructions.
+
+Sometimes you want to run with an extension group such as `xpulpv3` but disable
+certain subsets e.g. hardware loops. Do it like this:
+
+* `riscv32-unknown-elf-gcc -march=rv32imfc_xpulpv3 -mno-pulp-hwloop FILES`
+
+Check `riscv32-unknown-elf-gcc --target=help` for more such switches.
