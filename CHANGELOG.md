@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.0] - 2021-07-03
+
+### Added
+- `pulp.md` about new subextensions and extension groupings
+- `core-v.rst` about using cv32e40p with PULP extensions
+- gcc: Enable/Disable PULP extension with `-m` flags (see `--help` and `pulp.md`)
+- gcc: Updated multilib settings
+- gcc,binutils: Preliminary support for cv32e40p (`xcorev`)
+- binutils: smach custom float extension and extension strings
+- bintuils: Imported and patched corev assembly tests
+
+### Changed
+- gcc: *Split PULP extensions into various subextensions*. Check `pulp.md`.
+- gcc: Split PULP specific machine descriptions into separate files
+- binutils/gas: More warnings for hardware loops when used in a wrong way
+- binutils: Single location for PULP extension meta information making tedious
+  copy-paste-sync superfluous
+
+### Fixed
+- gcc,binutils: Version parsing of arch string (upstream bug)
+- gcc: Code generation for `__builtin_clrsb`
+- binutils: Disassembly of ji immeadite of hardware loops
+
+### Removed
+- gcc: Various dead `-m` options
+- binutils: Dead code from custom dynamic linking
+
 ## [2.0.1] - 2020-11-19
 
 ### Changed
