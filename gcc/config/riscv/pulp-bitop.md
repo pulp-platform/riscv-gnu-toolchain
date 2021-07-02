@@ -14,7 +14,7 @@
 	)
    )
   ]
-"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 0, NULL, NULL))"
+"TARGET_PULP_BITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 0, NULL, NULL)"
 {
 	int Offset, Size;
 	rtx xoperands[5];
@@ -54,7 +54,7 @@
 	)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
   "p.bclrr\\t%0,%1,%2 # Bit clear reg"
 [(set_attr "type" "logical")
  (set_attr "mode" "SI")]
@@ -67,7 +67,7 @@
 	)
    )
   ]
-"((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 1, NULL, NULL))"
+"TARGET_PULP_BITOP && riscv_valid_bit_field_imm_operand(operands[2], NULL, 1, NULL, NULL)"
 {
 	int Offset, Size;
 	rtx xoperands[5];
@@ -105,7 +105,7 @@
 	)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
   "p.bsetr\\t%0,%1,%2 # Bit set reg"
 [(set_attr "type" "logical")
  (set_attr "mode" "SI")]
@@ -116,7 +116,7 @@
         (sign_extract:SI (match_operand:SI 1 "register_operand" "r")
                          (match_operand:SI 2 "immediate_operand" "i")
                          (match_operand:SI 3 "immediate_operand" "i")))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
 	operands[2] = GEN_INT(INTVAL(operands[2])-1);
  	return "p.extract \t%0,%1,%2,%3 # Bit extract signed";
@@ -136,7 +136,7 @@
 	)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
   "p.extractr \t%0,%1,%2 # Bit extract signed, arg reg"
   [(set_attr "type" "logical")
    (set_attr "length" "1")]
@@ -149,7 +149,7 @@
 		    (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPEC_BEXTS_REG)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
   if (which_alternative == 0) {
   	return "p.extractr \t%0,%1,%2 # Bit extract signed, arg reg";
@@ -175,7 +175,7 @@
 		    (match_operand:SI 2 "nonmemory_operand" "r,i")] UNSPEC_BEXTU_REG)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
   if (which_alternative == 0) {
   	return "p.extractur \t%0,%1,%2 # Bit extract unsigned, reg arg";
@@ -199,7 +199,7 @@
         (zero_extract:SI (match_operand:SI 1 "register_operand" "r")
                          (match_operand:SI 2 "immediate_operand" "i")
                          (match_operand:SI 3 "immediate_operand" "i")))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
 	operands[2] = GEN_INT(INTVAL(operands[2])-1);
   	return "p.extractu \t%0,%1,%2,%3 # Bit extract unsigned";
@@ -218,7 +218,7 @@
 	)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
   "p.extractur \t%0,%1,%2 # Bit extract unsigned, reg arg"
 [(set_attr "type" "logical")
  (set_attr "mode" "SI")]
@@ -231,7 +231,7 @@
         (match_operand:SI 3 "reg_or_0_operand" "rJ")
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
 	operands[1] = GEN_INT(INTVAL(operands[1])-1);
   	if (operands[3] == CONST0_RTX (GET_MODE (operands[3])))
@@ -248,7 +248,7 @@
                         (match_operand:SI 2 "immediate_operand" "i"))
                 (and:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
                         (match_operand:SI 4 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bottom_bitmask_p (INTVAL (operands[4]))
+  "TARGET_PULP_BITOP && riscv_bottom_bitmask_p (INTVAL (operands[4]))
    && INTVAL(operands[2]) == ~INTVAL(operands[4])"
 {
   int len, pos;
@@ -269,7 +269,7 @@
                         (match_operand:SI 2 "immediate_operand" "i"))
                 (and:SI (match_operand:SI 3 "register_operand" "0")
                         (match_operand:SI 4 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bottom_bitmask_p (INTVAL (operands[2]))
+  "TARGET_PULP_BITOP && riscv_bottom_bitmask_p (INTVAL (operands[2]))
    && INTVAL(operands[2]) == ~INTVAL(operands[4])"
 {
   int len, pos;
@@ -291,7 +291,7 @@
                 (and:SI (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
 			           (match_operand:SI 5 "immediate_operand" "i"))
                         (match_operand:SI 4 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)
+  "TARGET_PULP_BITOP
    && riscv_bitmask (INTVAL (operands[4]), NULL, VOIDmode) == INTVAL (operands[5])
    && INTVAL(operands[2]) == ~INTVAL(operands[4])"
 {
@@ -314,7 +314,7 @@
 		    (match_operand:SI 3 "nonmemory_operand" "r,i")] UNSPEC_BINS_REG)
    )
   ]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)"
+  "TARGET_PULP_BITOP"
 {
   if (which_alternative == 0) {
   	return "p.insertr\t%0,%z2,%3";
@@ -340,7 +340,7 @@
                         (match_operand:SI 4 "immediate_operand" "i"))
 	 	(and:SI (match_operand:SI 1 "register_operand" "0")
                         (match_operand:SI 2 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP)
+  "TARGET_PULP_BITOP
    && riscv_bitmask (INTVAL (operands[4]), NULL, VOIDmode) == INTVAL (operands[5])
    && INTVAL(operands[2]) == ~INTVAL(operands[4])"
 {
@@ -361,7 +361,7 @@
                         (match_operand:SI 2 "immediate_operand" "i"))
                 (ashift:SI (match_operand:SI 3 "reg_or_0_operand" "rJ")
 			   (match_operand:SI 4 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
+  "TARGET_PULP_BITOP && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
 {
   int len;
   riscv_bitmask (~INTVAL (operands[2]), &len, SImode);
@@ -380,7 +380,7 @@
 			   (match_operand:SI 4 "immediate_operand" "i"))
 		(and:SI (match_operand:SI 1 "register_operand" "0")
                         (match_operand:SI 2 "immediate_operand" "i"))))]
-  "((Pulp_Cpu>=PULP_V2) && !TARGET_MASK_NOBITOP) && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
+  "TARGET_PULP_BITOP && riscv_bitmask_ins_p (INTVAL (operands[2]), INTVAL (operands[4]), SImode)"
 {
   int len;
   riscv_bitmask (~INTVAL (operands[2]), &len, SImode);

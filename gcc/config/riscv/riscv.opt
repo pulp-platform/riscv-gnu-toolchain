@@ -24,19 +24,6 @@
 HeaderInclude
 config/riscv/riscv-opts.h
 
-; Enum
-; Name(Pulp_DP_Format_Type) Type(enum Pulp_DP_Format_Type)
-; Possible types for -mfpdouble=option
-;
-; EnumValue
-; Enum(Pulp_DP_Format_Type) String(double) Value(PULP_DP_FORMAT64)
-;
-; EnumValue
-; Enum(Pulp_DP_Format_Type) String(float) Value(PULP_DP_FORMAT32)
-;
-; mfpdouble=
-; Target RejectNegative Joined Enum(Pulp_DP_Format_Type) Var(Pulp_DP_Format) Init(PULP_DP_FORMAT64)
-; Specify which format for double
 
 Enum
 Name(Pulp_Chip_Config_Type) Type(enum Pulp_Chip_Config_Type)
@@ -50,10 +37,6 @@ Enum(Pulp_Chip_Config_Type) String(fc) Value(PULP_CHIP_CONFIG_FC)
 EnumValue
 Enum(Pulp_Chip_Config_Type) String(all) Value(PULP_CHIP_CONFIG_ALL)
 
-mconf=
-Target RejectNegative Joined Var(Pulp_Chip_Config) Enum(Pulp_Chip_Config_Type) Init(PULP_CHIP_CONFIG_ALL)
--mconf=CONF, Conf= all, fc, cluster, default is all.
-
 Enum
 Name(Pulp_Chip_Type) Type(enum Pulp_Chip_Type)
 EnumValue
@@ -62,10 +45,8 @@ Enum(Pulp_Chip_Type) String(honey) Value(PULP_CHIP_HONEY)
 EnumValue
 Enum(Pulp_Chip_Type) String(pulpino) Value(PULP_CHIP_PULPINO)
 
-;; __GAP8 Start
 EnumValue
 Enum(Pulp_Chip_Type) String(gap8) Value(PULP_CHIP_GAP8)
-;; __GAP8 Stop
 
 mchip=
 Target RejectNegative Joined Var(Pulp_Chip) Enum(Pulp_Chip_Type) Init(PULP_CHIP_NONE)
@@ -84,11 +65,8 @@ Enum(Pulp_Processor_Type) String(pulpv1) Value(PULP_V1)
 EnumValue
 Enum(Pulp_Processor_Type) String(pulpv2) Value(PULP_V2)
 
-;; __GAP8 Start
-
 EnumValue
 Enum(Pulp_Processor_Type) String(gap8) Value(PULP_GAP8)
-;; __GAP8 Stop
 
 EnumValue
 Enum(Pulp_Processor_Type) String(pulpv3) Value(PULP_V3)
@@ -101,32 +79,16 @@ Target RejectNegative Joined Var(Pulp_Cpu) Enum(Pulp_Processor_Type) Init(PULP_N
 -mcpu=CPU       Compile code for Pulp variant CPU, default is none.
 
 mPE=
-Target RejectNegative Joined UInteger Var(_Pulp_PE) Init(0)
+Target RejectNegative Joined UInteger Var(_Pulp_PE) Init(0) Deprecated
 -mPE=N          Set PE cluster PE count to N.
 
 mFC=
-Target RejectNegative Joined UInteger Var(_Pulp_FC) Init(0)
+Target RejectNegative Joined UInteger Var(_Pulp_FC) Init(0) Deprecated
 -mFC=           0: without FC, 1: with FC.
-
-mL2=
-Target RejectNegative Joined UInteger Var(_Pulp_L2_Size) Init(0)
--mL2=SIZE       Set L2 size to SIZE, Init to 0.
-
-mL1Cl=
-Target RejectNegative Joined UInteger Var(_Pulp_L1_Cluster_Size) Init(0)
--mL1Cl=SIZE     Set Cluster L1 size to SIZE, Init to 0.
-
-mL1Fc=
-Target RejectNegative Joined UInteger Var(_Pulp_L1_FC_Size) Init(0)
--mL1c=SIZE      Set Fabric Controller L1 size to SIZE, Init to 0.
 
 mreg=
 Target RejectNegative Joined UInteger Var(Pulp_Number_Of_Reg) Init(32)
 Use only the mreg first registers of the integer register file, minimum is 16 and default is 32
-
-; mdf
-; Target RejectNegative Mask(MAP_DOUBLE_TO_FLOAT)
-; Internal flag for double mapped on float
 
 mbranch-cost=
 Target RejectNegative Joined UInteger Var(riscv_branch_cost)
@@ -180,7 +142,15 @@ Use hardware instructions for integer division.
 march=
 Target Report RejectNegative Joined
 -march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
-lower-case.
+lower-case. The following extensions groups are available: xpulpv0, xpulpv1, xpulpv2,
+xpulpv3, xgap8, corev. Alternatively, more fine grained subsets can be selected with:
+xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
+xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
+xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectgap8, xpulpvectall, xpulpclip,
+xpulpaddsubrn.
+The following extensions are only meant for pulpv0 and pulpv1 for
+compatibility reasons:
+xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
 
 mtune=
 Target RejectNegative Joined Var(riscv_tune_string)
@@ -225,93 +195,161 @@ Target Bool Var(riscv_mrelax) Init(1)
 Take advantage of linker relaxations to reduce the number of instructions
 required to materialize symbol addresses.
 
-mnohwloop
-Target Mask(MASK_NOHWLOOP)
-Disable hardware loop support
+; PULP
+; Allow manual disabling of certain pulp extensions
+; We put these flags into a separate variable because we were nearly overflowing
+; target_flags
 
-mnofinduct
-Target Mask(MASK_NOFINDUCT)
-Disable cost function setting to favor induction scheme
+
+mpulp-hwloop
+Target Mask(PULP_HWLOOP) Var(pulp_target_flags)
+Use PULP hardware loop instructions
+
+mpulp-postmod
+Target Mask(PULP_POSTMOD) Var(pulp_target_flags)
+Use PULP pointer post modification instructions
+
+mpulp-indregreg
+Target Mask(PULP_INDREGREG) Var(pulp_target_flags)
+Use PULP register offset load/store instructions
+
+mpulp-mac-si
+Target Mask(PULP_MAC_SI) Var(pulp_target_flags)
+Use PULP multiply accumulate instructions (32x32 into 32)
+
+mpulp-mulrn-hi
+Target Mask(PULP_MULRN_HI) Var(pulp_target_flags)
+Use PULP multiply instructions with norm/round (16x16 into 32)
+
+mpulp-macrn-hi
+Target Mask(PULP_MACRN_HI) Var(pulp_target_flags)
+Use PULP multiply accumulate instructions with norm/round (16x16 into 32)
+
+mpulp-partmac
+Target Mask(PULP_PARTMAC) Var(pulp_target_flags)
+Use PULP multiply accumulate instructions (16x16 into 32)
+
+mpulp-mac-alt
+Target Mask(PULP_MAC_ALT) Var(pulp_target_flags)
+Use PULP multiply accumulate instructions. This is a small subset of the PULP mac and partmac instructions plus some alternate mac instructions. Used in pulpv0. Use only if you know what you do.
+
+mpulp-minmax
+Target Mask(PULP_MINMAX) Var(pulp_target_flags)
+Use PULP minmax instructions
+
+mpulp-abs
+Target Mask(PULP_ABS) Var(pulp_target_flags)
+Use PULP abs instruction
+
+mpulp-br
+Target Mask(PULP_BR) Var(pulp_target_flags)
+Use PULP branch instruction
+
+mpulp-bitop
+Target Mask(PULP_BITOP) Var(pulp_target_flags)
+Use PULP bit manipulation instructions
+
+mpulp-bitop-small
+Target Mask(PULP_BITOP_SMALL) Var(pulp_target_flags)
+Use PULP bit manipulation instructions. This is a subset of the PULP bit manipulation instructions. Used in pulpv0 and pulpv1. Use only if you know what you do.
+
+mpulp-slet
+Target Mask(PULP_SLET) Var(pulp_target_flags)
+Use PULP slet/sletu instructions
+
+mpulp-vect
+Target Mask(PULP_VECT) Var(pulp_target_flags)
+Use PULP SIMD instructions
+
+mpulp-clip
+Target Mask(PULP_CLIP) Var(pulp_target_flags)
+Use PULP clip instructions
+
+mpulp-addsubrn
+Target Mask(PULP_ADDSUBRN) Var(pulp_target_flags)
+Use PULP add/sub with norm/round instructions
+
+mpulp-vectshufflepack
+Target Mask(PULP_VECT_SHUFFLEPACK) Var(pulp_target_flags)
+Use PULP SIMD shuffle and pack instructions
+
+mpulp-vectgap8
+Target Mask(PULP_VECT_GAP8) Var(pulp_target_flags)
+Use PULP GAP8 additional SIMD instructions
+
+mpulp-elw
+Target Mask(PULP_ELW) Var(pulp_target_flags)
+Use PULP ELW instruction (cluster synchronization)
+
+mpulp-bitrev
+Target Mask(PULP_BITREV) Var(pulp_target_flags)
+Use PULP bitreverse instruction
+
+mpulp-compat
+Target Mask(PULP_COMPAT) Var(pulp_target_flags)
+Use PULP extension instructions (if any) in pulpv0 and pulpv1 compatibility mode. This changes the instruction encoding (postmod) and instructions themselves (avg instead of addn). Use only if you know what you do.
 
 msloop
-Target Mask(MASK_SLOOP)
+Target Mask(PULP_SLOOP)
 Use long hw loop setup instead of padding with nop for loop with insn count < 3
 
+mno-finduct
+Target RejectNegative Mask(NOFINDUCT) Var(pulp_target_flags_override)
+Disable cost function setting to favor induction scheme
+
+; PULP deprecated aliases
+mnohwloop
+Target Alias(mpulp-hwloop) NegativeAlias Warn(%<-mnhowloop%> is deprecated. Use -mno-pulp-hwloop instead.)
+
+mnofinduct
+Target Alias(mno-finduct) Warn(%<-mnofinduct%> is deprecated. Use -mno-finduct instead.)
+
 mnopostmod
-Target Mask(MASK_NOPOSTMOD)
-Disable pointer post modification support
+Target Alias(mpulp-postmod) NegativeAlias Warn(%<-mnopostmod%> is deprecated. Use -mno-pulp-postmod instead.)
 
 mnoindregreg
-Target Mask(MASK_NOINDREGREG)
-Disable register offset pointer load/store
+Target Alias(mpulp-indregreg) NegativeAlias Warn(%<-mnoindregreg%> is deprecated. Use -mno-pulp-indregreg instead.)
 
 mnomac
-Target Mask(MASK_NOMAC)
-Disable full 32x32 into 32 mac support
+Target Alias(mpulp-mac-si) NegativeAlias Warn(%<-mnomac%> is deprecated. Use -mno-pulp-mac-si instead.)
 
 mnopartmac
-Target Mask(MASK_NOPARTMAC)
-Disable 16x16 into 32 mac support
+Target Alias(mpulp-partmac) NegativeAlias Warn(%<-mnopartmac%> is deprecated. Use -mno-pulp-partmac instead.)
 
 mnominmax
-Target Mask(MASK_NOMINMAX)
-Disable min/max support
+Target Alias(mpulp-minmax) NegativeAlias Warn(%<-mnominmax%> is deprecated. Use -mno-pulp-minmax instead.)
 
 mnoabs
-Target Mask(MASK_NOABS)
-Disable abs support
+Target Alias(mpulp-abs) NegativeAlias Warn(%<-mnoabs%> is deprecated. Use -mno-pulp-abs instead.)
 
 mnobitop
-Target Mask(MASK_NOBITOP)
-Disable cnt/ff1/fl1 support
+Target Alias(mpulp-bitop) NegativeAlias Warn(%<-mnobitop%> is deprecated. Use -mno-pulp-bitop instead.)
 
-; mnosext
-; Target Mask(MASK_NOSEXT)
-; Disable reg to reg sign-extending instructions
+; Disables reg to reg sign-extending instructions. Breaks compiled code.
+mnosext
+Deprecated
 
 mnoslet
-Target Mask(MASK_NOSLET)
-Disable slet/sletu instructions
+Target Alias(mpulp-slet) NegativeAlias Warn(%<-mnoslet%> is deprecated. Use -mno-pulp-slet instead.)
 
 mnovect
-Target Mask(MASK_NOVECT)
-Disable simd support
+Target Alias(mpulp-vect) NegativeAlias Warn(%<-mnovect%> is deprecated. Use -mno-pulp-vect instead.)
 
 mnoclip
-Target Mask(MASK_NOCLIP)
-Disable clip/clipu. -nominmax also disable clip/clipu
+Target Alias(mpulp-clip) NegativeAlias Warn(%<-mnoclip%> is deprecated. Use -mno-pulp-clip instead.)
 
 mnoaddsubnormround
-Target Mask(MASK_NOADDSUBNORMROUND)
-Disable add/sub with norm and round
+Target Alias(mpulp-addsubrn) NegativeAlias Warn(%<-mnoaddsubnormround%> is deprecated. Use -mno-pulp-addsubrn instead.)
 
-mnomulmacnormround
-Target Mask(MASK_NOMULMACNORMROUND)
-Disable 16x16 into 32 mul/mac  with norm and round
+; mnomulmacnormround
+; Target Alias(mpulp-mulmacrn) NegativeAlias Warn(%<-mnomulmacnormround%> is deprecated. Use -mno-pulp-mulmacrn instead.)
 
 mnoshufflepack
-Target Mask(MASK_NOSHUFFLEPACK)
-Disable vector pack and shuffle support
+Target Alias(mpulp-vectshufflepack) NegativeAlias Warn(%<-mnoshufflepack%> is deprecated. Use -mno-pulp-vectshufflepack instead.)
 
 mnativeomp
 Target Mask(MASK_OPEN_NATIVE)
 Enable Native Mapping of OpenMP runtime
-
-mWci
-Target Var(WARN_CINFO)
-Emit warnings when conflicting .Chip_Info.Info sections are found at link time without aborting link.
-
-mEci
-Target Var(ERR_CINFO)
-Emit warnings when conflicting .Chip_Info.Info sections are found at link time and abort link.
-
-mComp
-Target Var(LINK_COMP)
-Link in component mode
-
-mDIE=
-Target RejectNegative Joined UInteger Var(LINK_DUMP_IE_SECT) Init(0)
-Dump content of import and export sections, 0: no dump, 1 dump only, 2 C equiv, 3 dump and C equiv
 
 Mask(64BIT)
 

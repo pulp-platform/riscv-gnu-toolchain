@@ -63,12 +63,32 @@ along with GCC; see the file COPYING3.  If not see
 %{mabi=*} \
 %{mchip=*} \
 %{mcpu=*} \
-%{mL2=*} \
-%{mL1Cl=*} \
-%{mL1Fc=*} \
-%{mPE=*} \
-%{mFC=*} \
+%{mpulp-abs=*} \
+%{mpulp-addsubrn=*} \
+%{mpulp-bitop=*} \
+%{mpulp-bitop-small=*} \
+%{mpulp-bitrev=*} \
+%{mpulp-br=*} \
+%{mpulp-clip=*} \
+%{mpulp-compat=*} \
+%{mpulp-elw=*} \
+%{mpulp-hwloop=*} \
+%{mpulp-mac-alt=*} \
+%{mpulp-mac-si=*} \
+%{mpulp-macrn-hi=*} \
+%{mpulp-minmax=*} \
+%{mpulp-mulrn-hi=*} \
+%{mpulp-partmac=*} \
+%{mpulp-postmod=*} \
+%{mpulp-slet=*} \
+%{mpulp-vect=*} \
+%{mpulp-vectgap8=*} \
+%{mpulp-vectshufflepack=*} \
 %(subtarget_asm_spec)"
+
+/* TODO: assembler doesn't know about indregreg. The insn added when postmod is
+   enabled. */
+/* %{mpulp-indregreg=*} */
 
 #define TARGET_DEFAULT_CMODEL CM_MEDLOW
 
@@ -600,10 +620,10 @@ typedef struct {
 
 /* Pulp support for post modified read/write */
 
-#define HAVE_POST_INCREMENT ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_DECREMENT ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_MODIFY_DISP ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
-#define HAVE_POST_MODIFY_REG ((Pulp_Cpu>=PULP_V0) && !TARGET_MASK_NOPOSTMOD)
+#define HAVE_POST_INCREMENT TARGET_PULP_POSTMOD
+#define HAVE_POST_DECREMENT TARGET_PULP_POSTMOD
+#define HAVE_POST_MODIFY_DISP TARGET_PULP_POSTMOD
+#define HAVE_POST_MODIFY_REG TARGET_PULP_POSTMOD
 
 /* Addressing modes, and classification of registers for them.  */
 
