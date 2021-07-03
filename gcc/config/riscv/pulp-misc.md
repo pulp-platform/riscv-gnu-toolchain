@@ -17,7 +17,7 @@
 
 (define_insn "read_spr"
   [(set (match_operand:SI 0 "register_operand" "=r")
-	(unspec:SI [(match_operand:SI 1 "immediate_operand" "L")] UNSPEC_SPR_READ)
+	(unspec:SI [(match_operand:SI 1 "immediate_operand" "i")] UNSPEC_SPR_READ)
    )
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
@@ -28,7 +28,7 @@
 
 (define_insn "read_spr_vol"
   [(set (match_operand:SI 0 "register_operand" "=r")
-	(unspec_volatile:SI [(match_operand:SI 1 "immediate_operand" "L")] UNSPECV_SPR_READ_VOL)
+	(unspec_volatile:SI [(match_operand:SI 1 "immediate_operand" "i")] UNSPECV_SPR_READ_VOL)
    )
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
@@ -38,7 +38,7 @@
 )
 
 (define_insn "write_spr"
-  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "i,i") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
  "@
@@ -48,7 +48,7 @@
 
 (define_insn "read_then_write_spr"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
-	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "i,i") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_WRITE)
    )
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
@@ -58,7 +58,7 @@
 )
 
 (define_insn "spr_bit_set"
-  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "i,i") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
   "@
@@ -68,7 +68,7 @@
  
 (define_insn "read_then_spr_bit_set"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
-	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "i,i") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_SET)
    )
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
@@ -78,7 +78,7 @@
 )
 
 (define_insn "spr_bit_clr"
-  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "L,L") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
+  [(unspec_volatile [(match_operand:SI 0 "immediate_operand" "i,i") (match_operand:SI 1 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
   "@
@@ -88,7 +88,7 @@
 
 (define_insn "read_then_spr_bit_clr"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
-	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "L,L") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
+	(unspec_volatile [(match_operand:SI 1 "immediate_operand" "i,i") (match_operand:SI 2 "nonmemory_operand" "r,K")] UNSPEC_SPR_BIT_CLR)
    )
   ]
  "(Pulp_Cpu>=PULP_V2 || (Pulp_Cpu==PULP_SLIM))"
