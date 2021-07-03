@@ -302,6 +302,10 @@ mpulp-hwloop-min
 Target Joined Separate UInteger Var(pulp_hwloop_min_size) Init(2)
 -mpulp-hwloop-min=N	Minimum number of instructions in a hardware loop, default is 2
 
+mpulp-hwloop-align
+Target UInteger Var(pulp_hwloop_align) Init(0)
+Force hardware loops instructions to be aligned
+
 ; PULP deprecated aliases
 mnohwloop
 Target Alias(mpulp-hwloop) NegativeAlias Warn(%<-mnhowloop%> is deprecated. Use -mno-pulp-hwloop instead.)
@@ -354,6 +358,9 @@ Target Alias(mpulp-vectshufflepack) NegativeAlias Warn(%<-mnoshufflepack%> is de
 
 mhwloopmin=
 Target Alias(mpulp-hwloop-min) Warn(%<-mhwloopmin=%> is deprecated. Use -mpulp-hwloop-min instead.)
+
+mhwloopalign
+Target Alias(mpulp-hwloop-align) Warn(%<-mhwloopalign%> is deprecated. Use -mpulp-hwloop-align instead.)
 
 mnativeomp
 Target Mask(MASK_OPEN_NATIVE)
