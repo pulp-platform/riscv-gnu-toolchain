@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.1] - 2021-07-03
+
+### Fixed
+- gcc: PULP builtins fail during reload/lra pass
+
 ## [2.1.0] - 2021-07-03
 
 ### Added
