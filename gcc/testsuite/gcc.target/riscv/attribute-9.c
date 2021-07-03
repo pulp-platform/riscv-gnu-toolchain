@@ -3,5 +3,5 @@
 int foo()
 {
 }
-/* { dg-final { scan-assembler ".attribute arch, \"rv32i2p0_xbar0p0_sabc0p0_sxfoo0p0\"" } } */
+/* { dg-final { scan-assembler ".attribute arch, \"rv32i2p0_xbar2p0_sabc2p0_sxfoo2p0\"" } } */
 /* { dg-warning "unknown extension" "" { target *-*-* } 0 } */
