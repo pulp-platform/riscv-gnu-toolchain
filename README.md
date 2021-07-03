@@ -49,7 +49,7 @@ To build the Newlib cross-compiler, pick an install path.  If you choose,
 say, `/opt/riscv`, then add `/opt/riscv/bin` to your `PATH` now.  Then, simply
 run the following command:
 
-    ./configure --prefix=/opt/riscv --march=rv32imfcxpulpv2 --mabi=ilp32e --enable-multilib
+    ./configure --prefix=/opt/riscv --with-arch=rv32imfcxpulpv3 --with-abi=ilp32 --enable-multilib
     make
 
 You should now be able to use riscv32-unknown-elf-gcc and its cousins. You can
