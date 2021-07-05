@@ -1,23 +1,44 @@
-# Building
+# Information for Maintainers
 
-## binutils
+## Making a binary Release
+
+1. Make sure you build on Centos 7. This makes it so that glibc requirements are low.
+2. Make a gitlab release
+3. Tag the branch with `TAG` (follow semantic versioning)
+4. For the configure command, make sure you `--enable-multilib` and set
+   `--with-pkgversion="$DATE PULP GCC $TAG"`. This should look like this
+
+```bash
+ ./configure --prefix=/scratch/balasr-build/pulp-gcc-2.1.2 --with-arch=rv32imfcxpulpv3 --with-abi=ilp32 --enable-multilib --with-pkgversion=2021-07-04 PULP GCC v2.1.2`
+```
+
+5. Make a tarball of the install directory using the following naming scheme
+
+```bash
+tar -czvf pulp-gcc-$TAG-$DATE.tar.gz -C $PATH_TO_INSTALL_DIR
+```
+
+## Building
+General notes on building the GNU Compiler Collection.
+
+### binutils
 ```bash
 ./configure --target=riscv32-unknown-elf --prefix=/home/bluew/tmp/pulp-new-gcc --disable-werror --with-expat=yes --disable-gdb --disable-libdecnumber --disable-readline
 ```
 
-## gdb (needs out of tree build)
+### gdb (needs out of tree build)
 ```bash
 cd gdb-build-balasr
 ../riscv-gdb/configure --target=riscv32-unknown-elf --prefix=/home/bluew/tmp/pulp-new-gcc --disable-werror --with-expat=yes --enable-gdb --disable-gas --disable-binutils --disable-ld --disable-gold --disable-gprof
 ```
 
-## dejagnu (out of tree)
+### dejagnu (out of tree)
 ```bash
 cd dejagnu-build-balasr
 ../riscv-dejagnu/configure --prefix=/home/bluew/tmp/pulp-new-gcc
 ```
 
-## qemu (as depedency for testing)
+### qemu (as depedency for testing)
 	Needs to be patched
 	1. `--disable-werror` because deprecation warnings are upgraded to errors
 	2. `--disable-docs` because newer sphinx versions are not able to build the docs
@@ -38,10 +59,10 @@ stamps/build-qemu: $(srcdir)/qemu
 	date > $@
 ```
 
-## Targets
+### Targets
 good target board `riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmodel=medlow`
 
-## gcc
+### gcc
 ```bash
 cd riscv-gcc && ./contrib/download_prerequisites
 cd ..
@@ -51,20 +72,23 @@ cd gcc-build-balasr
 .././riscv-gcc/configure --target=riscv32-unknown-elf --prefix=/home/bluew/tmp/pulp-new-gcc --disable-shared --disable-threads --enable-languages=c,c++ --with-system-zlib --enable-tls --with-newlib --with-sysroot=/home/bluew/tmp/pulp-new-gcc/riscv32-unknown-elf --with-native-system-header-dir=/include --disable-libmudflap --disable-libssp --disable-libquadmath --disable-libgomp --disable-nls --disable-tm-clone-registry --src=.././riscv-gcc --enable-multilib --with-abi=ilp32 --with-arch=rv32gc --with-tune=rocket 'CFLAGS_FOR_TARGET=-Os   -mcmodel=medlow' 'CXXFLAGS_FOR_TARGET=-Os   -mcmodel=medlow'
 ```
 
-# Testing
-## gdb
+## Testing
+How to test various parts of the GNU Compiler Collection.
+
+### gdb
 ```bash
 cd gdb-build-balasr
 make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_board=riscv-sim"
 ```
 
-## binutils
+### binutils
 ```bash
 cd riscv-binutils
 make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_board=riscv-sim"
 ```
 
-## gcc
+### gcc
+
 ```bash
 # example on how to run tls.exp
 cd build-gcc-newlib-stage2/
@@ -88,7 +112,7 @@ runtest --tool gcc --target_board='riscv-sim/-march=rv32imafc/-mabi=ilp32f/-mcmo
 make -C build-gcc-newlib-stage2 check-gcc "RUNTESTFLAGS=--target_board='riscv-sim/-march=rv32imfcxpulpv2/-mabi=ilp32f/-mcmodel=medlow'"
 ```
 
-## snippets
+### Debug Snippets
 
 Stringify macros
 ```c
