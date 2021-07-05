@@ -221,4 +221,14 @@ AS_IF([test "x$with_linux_headers_src" != xdefault],
 	[AC_SUBST(with_linux_headers_src,$with_linux_headers_src)],
 	[AC_SUBST(with_linux_headers_src,"\$(srcdir)/linux-headers/include")])
 
+
+AC_ARG_WITH(pkgversion,
+	[AS_HELP_STRING([--with-pkgversion=PULP],
+		[Sets the pkgversion string. Ideally, put PULP GCC version number and the build date there.])],
+	[],
+	[with_pkgversion="PULP"]
+	)
+
+AC_SUBST(WITH_PKGVERSION, --with-pkgversion=\"$with_pkgversion\")
+
 AC_OUTPUT
