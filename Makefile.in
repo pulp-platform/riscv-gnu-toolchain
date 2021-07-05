@@ -28,6 +28,8 @@ WITH_ABI ?= @WITH_ABI@
 WITH_TUNE ?= @WITH_TUNE@
 SYSROOT := $(INSTALL_DIR)/sysroot
 
+WITH_PKGVERSION ?= @WITH_PKGVERSION@
+
 SHELL := /bin/sh
 AWK := @GAWK@
 SED := @GSED@
@@ -181,6 +183,7 @@ stamps/build-binutils-linux: $(BINUTILS_SRCDIR) stamps/check-write-permission
 		--prefix=$(INSTALL_DIR) \
 		--with-sysroot=$(SYSROOT) \
 		$(MULTILIB_FLAGS) \
+		$(WITH_PKGVERSION) \
 		@with_guile@ \
 		--disable-werror \
 		--disable-nls \
@@ -203,6 +206,7 @@ stamps/build-gdb-linux: $(GDB_SRCDIR)
 		--prefix=$(INSTALL_DIR) \
 		--with-sysroot=$(SYSROOT) \
 		$(MULTILIB_FLAGS) \
+		$(WITH_PKGVERSION) \
 		@with_guile@ \
 		--disable-werror \
 		--disable-nls \
@@ -295,6 +299,7 @@ stamps/build-gcc-linux-stage1: $(GCC_SRCDIR) stamps/build-binutils-linux \
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-O2 $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-O2 $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@) inhibit-libc=true all-gcc
@@ -327,6 +332,7 @@ stamps/build-gcc-linux-stage2: $(GCC_SRCDIR) $(addprefix stamps/build-glibc-linu
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-O2 $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-O2 $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@)
@@ -343,6 +349,7 @@ stamps/build-binutils-linux-native: $(BINUTILS_SRCDIR) stamps/build-gcc-linux-st
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR)/native \
 		$(MULTILIB_FLAGS) \
+		$(WITH_PKGVERSION) \
 		@with_guile@ \
 		--disable-werror \
 		--disable-nls \
@@ -378,7 +385,8 @@ stamps/build-gcc-linux-native: $(GCC_SRCDIR) stamps/build-gcc-linux-stage2 stamp
 		$(MULTILIB_FLAGS) \
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
-		$(WITH_TUNE)
+		$(WITH_TUNE) \
+		$(WITH_PKGVERSION)
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
 	cp -a $(INSTALL_DIR)/$(LINUX_TUPLE)/lib* $(SYSROOT)
@@ -397,6 +405,7 @@ stamps/build-binutils-newlib: $(BINUTILS_SRCDIR) stamps/check-write-permission
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR) \
 		@with_guile@ \
+		$(WITH_PKGVERSION) \
 		--disable-werror \
 		$(BINUTILS_TARGET_FLAGS) \
 		--disable-gdb \
@@ -416,6 +425,7 @@ stamps/build-gdb-newlib: $(GDB_SRCDIR)
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR) \
 		@with_guile@ \
+		$(WITH_PKGVERSION) \
 		--disable-werror \
 		$(GDB_TARGET_FLAGS) \
 		--enable-gdb \
@@ -455,6 +465,7 @@ stamps/build-gcc-newlib-stage1: $(GCC_SRCDIR) stamps/build-binutils-newlib
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-Os $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-Os $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@) all-gcc
@@ -553,6 +564,7 @@ stamps/build-gcc-newlib-stage2: $(GCC_SRCDIR) stamps/build-newlib \
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-Os $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-Os $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@)
@@ -573,6 +585,7 @@ stamps/build-binutils-musl: $(BINUTILS_SRCDIR) stamps/check-write-permission
 		--prefix=$(INSTALL_DIR) \
 		--with-sysroot=$(SYSROOT) \
 		$(MULTILIB_FLAGS) \
+		$(WITH_PKGVERSION) \
 		@with_guile@ \
 		--disable-werror \
 		--disable-nls \
@@ -613,6 +626,7 @@ stamps/build-gcc-musl-stage1: $(GCC_SRCDIR) stamps/build-binutils-musl \
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-O2 $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-O2 $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@) inhibit-libc=true all-gcc
@@ -677,6 +691,7 @@ stamps/build-gcc-musl-stage2: $(GCC_SRCDIR) stamps/build-musl-linux \
 		$(WITH_ABI) \
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
+		$(WITH_PKGVERSION) \
 		CFLAGS_FOR_TARGET="-O2 $(CFLAGS_FOR_TARGET)" \
 		CXXFLAGS_FOR_TARGET="-O2 $(CXXFLAGS_FOR_TARGET)"
 	$(MAKE) -C $(notdir $@)
