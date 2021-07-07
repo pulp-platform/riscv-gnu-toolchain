@@ -26,18 +26,51 @@
   (set_attr "mode" "SI")]
 )
 
+;; (define_insn "set_hwloop_lc"
+;; [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
+;;       (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
+;;  (use (match_operand:SI 2 "immediate_operand" "I,I"))
+;; ]
+;; ""
+;; "@
+;;  lp.count  \tx%2,%1\t # loop setup, lc set
+;;  lp.counti \tx%2,%1\t # loop setup, lc set"
+;; [(set_attr "type" "move,move")
+;;  (set_attr "mode" "SI")]
+;;)
+
 (define_insn "set_hwloop_lc"
  [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
        (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
   (use (match_operand:SI 2 "immediate_operand" "I,I"))
  ]
  "TARGET_PULP_HWLOOP"
- "@
-  lp.count  \tx%2,%1\t # loop setup, lc set
-  lp.counti \tx%2,%1\t # loop setup, lc set"
+ {
+        switch (which_alternative) {
+                case 0: return pulp_hwloop_align?".align 2\n\tlp.count  \tx%2,%1\t # loop setup, lc set":"lp.count  \tx%2,%1\t # loop setup, lc set";
+		case 1: return pulp_hwloop_align?".align 2\n\tlp.counti \tx%2,%1\t # loop setup, lc set":"lp.counti \tx%2,%1\t # loop setup, lc set";
+		default: return "";
+	}
+ }
  [(set_attr "type" "move,move")
   (set_attr "mode" "SI")]
 )
+
+;;(define_insn "set_hwloop_lc_le"
+;; [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
+;;       (unspec_volatile:SI [(match_operand:SI 1 "general_operand" "r,I")] UNSPECV_LC_SET))
+;;  (set (match_operand:SI 2 "le_register_operand" "=t,t")
+;;       (label_ref (match_operand 3 "" "")))
+;;  (use (match_operand:SI 4 "immediate_operand" "I,I"))
+;; ]
+;; ""
+;; "@
+;;  lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set
+;;  lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set"
+;; [(set_attr "type" "move,move")
+;;  (set_attr "mode" "SI")]
+;;)
+
 
 (define_insn "set_hwloop_lc_le"
  [(set (match_operand:SI 0 "lc_register_operand" "=k,k")
@@ -47,9 +80,13 @@
   (use (match_operand:SI 4 "immediate_operand" "I,I"))
  ]
  "TARGET_PULP_HWLOOP"
- "@
-  lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set
-  lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set"
+{
+        switch (which_alternative) {
+  		case 0: return pulp_hwloop_align?".align 2\n\tlp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set":"lp.setup  \tx%4,%1,(%3)\t # loop setup, lc+le set";
+  		case 1: return pulp_hwloop_align?".align 2\n\tlp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set":"lp.setupi \tx%4,%1,(%3)\t # loop setup, lc+le set";
+		default: return "";
+	}
+}
  [(set_attr "type" "move,move")
   (set_attr "mode" "SI")]
 )
@@ -153,4 +190,3 @@
 ;;  (set_attr "mode" "none")
 ;; ]
 )
-

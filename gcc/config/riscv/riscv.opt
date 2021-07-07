@@ -289,13 +289,22 @@ mpulp-compat
 Target Mask(PULP_COMPAT) Var(pulp_target_flags)
 Use PULP extension instructions (if any) in pulpv0 and pulpv1 compatibility mode. This changes the instruction encoding (postmod) and instructions themselves (avg instead of addn). Use only if you know what you do.
 
+mno-finduct
+Target RejectNegative Mask(NOFINDUCT) Var(pulp_target_flags_override)
+Disable cost function setting to favor induction scheme
+
+; hardware loop tweaks
 msloop
 Target Mask(PULP_SLOOP)
 Use long hw loop setup instead of padding with nop for loop with insn count < 3
 
-mno-finduct
-Target RejectNegative Mask(NOFINDUCT) Var(pulp_target_flags_override)
-Disable cost function setting to favor induction scheme
+mpulp-hwloop-min
+Target Joined Separate UInteger Var(pulp_hwloop_min_size) Init(2)
+-mpulp-hwloop-min=N	Minimum number of instructions in a hardware loop, default is 2
+
+mpulp-hwloop-align
+Target UInteger Var(pulp_hwloop_align) Init(0)
+Force hardware loops instructions to be aligned
 
 ; PULP deprecated aliases
 mnohwloop
@@ -346,6 +355,12 @@ Target Alias(mpulp-addsubrn) NegativeAlias Warn(%<-mnoaddsubnormround%> is depre
 
 mnoshufflepack
 Target Alias(mpulp-vectshufflepack) NegativeAlias Warn(%<-mnoshufflepack%> is deprecated. Use -mno-pulp-vectshufflepack instead.)
+
+mhwloopmin=
+Target Alias(mpulp-hwloop-min) Warn(%<-mhwloopmin=%> is deprecated. Use -mpulp-hwloop-min instead.)
+
+mhwloopalign
+Target Alias(mpulp-hwloop-align) Warn(%<-mhwloopalign%> is deprecated. Use -mpulp-hwloop-align instead.)
 
 mnativeomp
 Target Mask(MASK_OPEN_NATIVE)
