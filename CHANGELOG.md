@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- gdb/sim: Add pulp vector insn
+- gdb/sim: Add bitrev insn
+- gdb/sim: Add testsuite
+
+### Fixed
+- gas: Add p.bitrev and simd complex to pulpv3 and corev
+- gdb/sim: Fix clip boundaries
+- gdb/sim: Improve error handling
+
+### Changed
+- gdb/sim: Set default simulation model to corev
+
 ## [2.1.3] - 2021-07-05
 
 ### Added
