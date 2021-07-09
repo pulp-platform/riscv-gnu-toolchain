@@ -189,7 +189,7 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF,V2HI,V4QI"
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF,V2HI,V2QI,V4QI"
   (const_string "unknown"))
 
 ;; True if the main data type is twice the size of a word.
@@ -1515,6 +1515,29 @@
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store")
    (set_attr "mode" "V2HI")])
+
+;; 32-bit v2qi vector moves
+
+(define_expand "movv2qi"
+  [(set (match_operand:V2QI 0 "")
+        (match_operand:V2QI 1 ""))]
+  "TARGET_PULP_VECT"
+{
+  if (riscv_legitimize_move (V2QImode, operands[0], operands[1]))
+    DONE;
+})
+
+;; TODO: gate behind TARGET_PULP_VECT ?
+(define_insn "movv2qi_internal"
+  [(set (match_operand:V2QI 0 "nonimmediate_operand" "=r,r,r,m")
+        (match_operand:V2QI 1 "move_operand" "r,T,m,rJ"))]
+  "(register_operand (operands[0], V2QImode)
+    || reg_or_0_operand (operands[1], V2QImode))
+    && !riscv_filter_pulp_operand(operands[0], false)
+    && !riscv_filter_pulp_operand(operands[1], false)"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,const,load,store")
+   (set_attr "mode" "V2QI")])
 
 ;; 32-bit v4qi vector moves
 

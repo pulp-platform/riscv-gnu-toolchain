@@ -57,7 +57,7 @@
    )
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK"
-  "pv.pack.h \t%0,%2,%1 \t# Vector pack of 2 shorts"
+  "pv.pack \t%0,%2,%1 \t# Vector pack of 2 shorts"
 [(set_attr "type" "move")
  (set_attr "mode" "SI")]
 )
