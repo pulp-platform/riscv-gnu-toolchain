@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.2.0] - 2021-07-09
+
 ### Added
 - gdb/sim: Add pulp vector insn
 - gdb/sim: Add bitrev insn
@@ -16,9 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - gas: Add p.bitrev and simd complex to pulpv3 and corev
 - gdb/sim: Fix clip boundaries
 - gdb/sim: Improve error handling
+- gcc: V2QI moves
+- gcc: Use pv.pack instead of pv.pack.h
 
 ### Changed
 - gdb/sim: Set default simulation model to corev
+- gcc: Enable SIMD support. Was functional, but disabled.
 
 ## [2.1.3] - 2021-07-05
 

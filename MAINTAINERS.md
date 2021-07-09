@@ -88,6 +88,13 @@ make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_boa
 ```
 
 ### gcc
+Using `make check` from gcc
+
+```
+make check-gcc RUNTESTFLAGS="execute.exp=scal-to-vec1* --target_board=riscv-sim"
+```
+
+or manually
 
 ```bash
 # example on how to run tls.exp
