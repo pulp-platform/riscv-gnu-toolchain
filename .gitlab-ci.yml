@@ -17,11 +17,13 @@ variables:
   MAKEFLAGS: "-j64"
   RISCV_ABI: "ilp32f"
   RISCV_ABI_ALT: "ilp32e" # embedded abi
+  RISCV64_ABI: "lp64d"
   # dhrystone test doesn't understand gc, so we spell it out
   RISCV_ARCH: "rv32imafc"
   RISCV_ARCH_ALT: "rv32emc"
   RISCV_PULP_ARCH: "rv32imfcxpulpv3"
   RISCV_COREV_ARCH: "rv32imfcxcorev"
+  RISCV64_ARCH: "rv64gc"
 
 stages:
   - test
@@ -351,6 +353,86 @@ rv32imfcxcorev-ilp32f-gdb:
     - mkdir -p corev-toolchain
     - echo "Running configure"
     - ./configure --prefix=$(pwd)/corev-toolchain --with-abi="$RISCV_ABI" --with-arch="$RISCV_COREV_ARCH"
+    - echo "Running tests"
+    - make check-gdb || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do cp "$f" "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+
+# rv64gc lp64d (debian unix baseline)
+rv64gc-lp64d-gcc:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p rv64-toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/rv64-toolchain --with-abi="$RISCV64_ABI" --with-arch="$RISCV64_ARCH"
+    - echo "Running tests"
+    - make report-gcc || echo "suppressing error"
+    # collect all dejagnu *.sum results into base directory
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    # apply additional filter on test results
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter gcc newlib test/whitelist "$f" -o "$f.x"; done
+    # convert to junit xml files
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    # convert to html
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/g++/g++.log
+      - ./build-gcc-newlib-stage2/gcc/testsuite/gcc/gcc.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv64gc-lp64d-binutils:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p rv64-toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/rv64-toolchain --with-abi="$RISCV64_ABI" --with-arch="$RISCV64_ARCH"
+    - echo "Running tests"
+    - make report-binutils || echo "suppressing error"
+    - find . -name '*.sum' -exec cp {} $(pwd) \;
+    - for f in ./*.sum; do ./scripts/dejagnu-sum-filter binutils newlib test/whitelist "$f" -o "$f.x"; done
+    - for f in ./*.sum.x; do ./sum2junit.sh "$f"; done
+    - for f in ./*.xml; do /usr/sepp/bin/python3.4 -m junit2htmlreport "$f"; done
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - config.log
+      - "*.xml"
+      - "*.html"
+      - "*.sum"
+      - "*.sum.x"
+    reports:
+      junit: "*.xml"
+
+rv64gc-lp64d-gdb:
+  stage: test
+  script:
+    - echo "Creating install directory"
+    - mkdir -p rv64-toolchain
+    - echo "Running configure"
+    - ./configure --prefix=$(pwd)/rv64-toolchain --with-abi="$RISCV64_ABI" --with-arch="$RISCV64_ARCH"
     - echo "Running tests"
     - make check-gdb || echo "suppressing error"
     - find . -name '*.sum' -exec cp {} $(pwd) \;
