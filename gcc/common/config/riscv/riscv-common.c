@@ -717,17 +717,15 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   if (subset_list->lookup("xpulpvectshufflepack"))
     *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
 
-  *pulp_flags &= ~OPTION_MASK_PULP_VECT_GAP8;
-  if (subset_list->lookup("xpulpvectgap", 8, 0))
-    *pulp_flags |= OPTION_MASK_PULP_VECT_GAP8;
-
-  *pulp_flags &= ~OPTION_MASK_PULP_VECT;
-  *pulp_flags &= ~OPTION_MASK_PULP_VECT_SHUFFLEPACK;
   if (subset_list->lookup("xpulpvectall"))
     {
       *pulp_flags |= OPTION_MASK_PULP_VECT;
       *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
     }
+
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT_GAP8;
+  if (subset_list->lookup("xpulpvectgap", 8, 0))
+    *pulp_flags |= OPTION_MASK_PULP_VECT_GAP8;
 
   *pulp_flags &= ~OPTION_MASK_PULP_CLIP;
   if (subset_list->lookup("xpulpclip"))
