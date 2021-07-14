@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- gcc: xpulpvect was not working as argument, but xpulpvectall was
+
 ## [2.2.0] - 2021-07-09
 
 ### Added
