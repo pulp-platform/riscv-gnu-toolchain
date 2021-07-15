@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- gcc: Add simd complex insn
+
+### Changed
+- gcc: Generalize simd md patterns
+
 ### Fixed
 - gcc: xpulpvect was not working as argument, but xpulpvectall was
 
