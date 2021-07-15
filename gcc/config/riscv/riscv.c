@@ -5762,7 +5762,7 @@ static bool
 riscv_can_use_doloop_p (const widest_int &, const widest_int &,
                       unsigned int loop_depth, bool entered_at_top)
 {
-        if ((Pulp_Cpu<PULP_V1) || !TARGET_PULP_HWLOOP) return 0;
+        if (!TARGET_PULP_HWLOOP) return 0;
 
 // printf("Loop entered at top: %d\n", entered_at_top);
         return (entered_at_top && (loop_depth <= 2));
@@ -6379,7 +6379,7 @@ hwloop_pattern_reg (rtx_insn *insn)
 {
   rtx reg;
 
-  if ((Pulp_Cpu<PULP_V1) || !TARGET_PULP_HWLOOP || !JUMP_P (insn) || recog_memoized (insn) != CODE_FOR_loop_end)
+  if (!TARGET_PULP_HWLOOP || !JUMP_P (insn) || recog_memoized (insn) != CODE_FOR_loop_end)
     return NULL_RTX;
 
   reg = SET_DEST (XVECEXP (PATTERN (insn), 0, 1));
