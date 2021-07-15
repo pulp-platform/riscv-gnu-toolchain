@@ -14,8 +14,8 @@ Alternatively, more fine grained subsets
 can be selected with: `xpulphwloop`, `xpulppostmod`, `xpulpindregreg`,
 `xpulpmacsi`, `xpulpmacrnhi`, `xpulpmulrnhi`, `xpulppartmac`, `xpulpminmax`,
 `xpulpabs`, `xpulpbitop`, `xpulpbitopsmall`, `xpulpslet`, `xpulpvect`,
-`xpulpvectshufflepack`, `xpulpvectgap8`, `xpulpvectall`, `xpulpclip`,
-`xpulpaddsubrn`.
+`xpulpvectshufflepack`, `xpulpvectcomplex`, `xpulpvectgap8`, `xpulpvectall`,
+`xpulpclip`, `xpulpaddsubrn`.
 
 The following extensions are only meant for `pulpv0` and
 `pulpv1` for compatibility reasons: `xpulppostmodv0`, `xpulpminmaxv0`,
@@ -97,6 +97,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
   | PULP\_ADDSUBRN          |        |        | x      | x      | x    | x      | x    | x     |
   | PULP\_VECT              |        |        | x      | x      | x    | x      | x    | x     |
   | PULP\_VECT\_SHUFFLEPACK |        |        | x      | x      | x    | x      | x    | x     |
+  | PULP\_VECT\_COMPLEX     |        |        |        | x      |      | x      |      | x     |
   | PULP\_VECT\_GAP8        |        |        |        |        | x    |        |      |       |
   | PULP\_VECT\_GAP9        |        |        |        |        |      |        | x    |       |
   | PULP\_BR                |        |        | x      | x      | x    | x      | x    | x     |
@@ -147,7 +148,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 <tbody>
 <tr>
-<td class="org-left">PULP<sub>POSTMOD</sub></td>
+<td class="org-left">PULP\<sub>POSTMOD</sub></td>
 <td class="org-left">x (c)</td>
 <td class="org-left">x (C)</td>
 <td class="org-left">x</td>
@@ -160,7 +161,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>INDREGREG</sub></td>
+<td class="org-left">PULP\<sub>INDREGREG</sub></td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
@@ -173,7 +174,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>ABS</sub></td>
+<td class="org-left">PULP\<sub>ABS</sub></td>
 <td class="org-left">x (c)</td>
 <td class="org-left">x (c)</td>
 <td class="org-left">x</td>
@@ -186,7 +187,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>SLET</sub></td>
+<td class="org-left">PULP\<sub>SLET</sub></td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
@@ -199,7 +200,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>MINMAX</sub></td>
+<td class="org-left">PULP\<sub>MINMAX</sub></td>
 <td class="org-left">x (c)</td>
 <td class="org-left">x (c)</td>
 <td class="org-left">x</td>
@@ -212,7 +213,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>BITOP</sub><sub>SMALL</sub></td>
+<td class="org-left">PULP\<sub>BITOP</sub>\<sub>SMALL</sub></td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
 <td class="org-left">&#xa0;</td>
@@ -225,7 +226,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>BITOP</sub></td>
+<td class="org-left">PULP\<sub>BITOP</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -238,7 +239,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>CLIP</sub></td>
+<td class="org-left">PULP\<sub>CLIP</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -251,7 +252,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>HWLOOP</sub></td>
+<td class="org-left">PULP\<sub>HWLOOP</sub></td>
 <td class="org-left">x (d)</td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
@@ -264,7 +265,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>MAC</sub><sub>ALT</sub></td>
+<td class="org-left">PULP\<sub>MAC</sub>\<sub>ALT</sub></td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
 <td class="org-left">&#xa0;</td>
@@ -277,7 +278,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>MAC</sub><sub>SI</sub></td>
+<td class="org-left">PULP\<sub>MAC</sub>\<sub>SI</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -290,7 +291,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>MACRN</sub><sub>HI</sub></td>
+<td class="org-left">PULP\<sub>MACRN</sub>\<sub>HI</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -303,7 +304,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>MULRN</sub><sub>HI</sub></td>
+<td class="org-left">PULP\<sub>MULRN</sub>\<sub>HI</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -316,7 +317,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>PARTMAC</sub></td>
+<td class="org-left">PULP\<sub>PARTMAC</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -329,7 +330,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>ADDSUBRN</sub></td>
+<td class="org-left">PULP\<sub>ADDSUBRN</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -342,7 +343,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>VECT</sub></td>
+<td class="org-left">PULP\<sub>VECT</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -355,7 +356,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>VECT</sub><sub>SHUFFLEPACK</sub></td>
+<td class="org-left">PULP\<sub>VECT</sub>\<sub>SHUFFLEPACK</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -368,7 +369,20 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>VECT</sub><sub>GAP8</sub></td>
+<td class="org-left">PULP\<sub>VECT</sub>\<sub>COMPLEX</sub></td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">x</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">x</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">x</td>
+</tr>
+
+
+<tr>
+<td class="org-left">PULP\<sub>VECT</sub>\<sub>GAP8</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -381,7 +395,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>VECT</sub><sub>GAP9</sub></td>
+<td class="org-left">PULP\<sub>VECT</sub>\<sub>GAP9</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -394,7 +408,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>BR</sub></td>
+<td class="org-left">PULP\<sub>BR</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">x</td>
@@ -407,7 +421,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>ELW</sub></td>
+<td class="org-left">PULP\<sub>ELW</sub></td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
 <td class="org-left">x</td>
@@ -420,7 +434,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>NN</sub></td>
+<td class="org-left">PULP\<sub>NN</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -433,7 +447,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>BITREV</sub></td>
+<td class="org-left">PULP\<sub>BITREV</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -446,7 +460,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>FINX</sub><sub>GAP9</sub></td>
+<td class="org-left">PULP\<sub>FINX</sub>\<sub>GAP9</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -459,7 +473,7 @@ The arch strings are `xpulpv0`, `xpulpv1`, `xpulpv3`, `xgap8`, `xpulpnn`, `xgap9
 
 
 <tr>
-<td class="org-left">PULP<sub>HALFFLOAT</sub><sub>GAP9</sub></td>
+<td class="org-left">PULP\<sub>HALFFLOAT</sub>\<sub>GAP9</sub></td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
@@ -657,6 +671,26 @@ Additional SIMD instructions for shuffle and pack
 Note the cv32e40p also includes these
 * pv.pack
 which are in PULP_VECT
+
+### PULP_\VECT\_COMPLEX `xpulpvectcomplex`
+PULP SIMD complex instructions
+
+* pv.cplxmul.h.r
+* pv.cplxmul.h.r.div2
+* pv.cplxmul.h.r.div4
+* pv.cplxmul.h.r.div8
+
+* pv.cplxmul.h.i
+* pv.cplxmul.h.i.div2
+* pv.cplxmul.h.i.div4
+* pv.cplxmul.h.i.div8
+
+* pv.subrotmj.h
+* pv.subrotmj.h.div2
+* pv.subrotmj.h.div4
+* pv.subrotmj.h.div8
+
+* pv.cplxconj.h
 
 ### PULP_\VECT\_GAP8 `xpulpvectgap8`
 Additional SIMD instructions in gap8
