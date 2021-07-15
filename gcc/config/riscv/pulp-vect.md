@@ -8,6 +8,9 @@
 ;; PULP only
 
 (define_mode_iterator VMODEINT          [V2HI V4QI])
+(define_mode_iterator VMODEINT2         [V2HI])
+(define_mode_iterator VMODEINT4         [V4QI])
+
 (define_mode_iterator VMODEALL          [V2HI V4QI])
 (define_mode_iterator VMODEALL4         [V4QI])
 (define_mode_iterator VMODEALL2         [V2HI])
@@ -16,15 +19,19 @@
 (define_mode_attr vec_type   [(V2HI "v2hi") (V4QI "v4qi")])
 (define_mode_attr vec_size   [(V2HI "h")    (V4QI "b")])
 
+(define_mode_attr int_vec_size        [(V2HI "h") (V4QI "b")])
+(define_mode_attr int_vec_type        [(V2HI "v2hi") (V4QI "v4qi")])
+(define_mode_attr int_vec_mode        [(V2HI "V2HI") (V4QI "V4QI")])
+
 (define_mode_attr vec_scalar          [(V2HI "SI")  (V4QI "SI")])
 (define_mode_attr vec_scalar_int      [(V2HI "SI")  (V4QI "SI")])
 (define_mode_attr vec_scalar_elmt     [(V2HI "HI")  (V4QI "QI")])
 
 ;; Vector Init
 
-(define_insn "vec_init<VMODEALL:mode>_internal"
- [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-       (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,vIsdc"))
+(define_insn "vec_init<VMODEINT:mode>_internal"
+ [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+       (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 1 "nonmemory_operand" "r,vIsdc"))
   )
  ]
 "TARGET_PULP_VECT"
@@ -48,11 +55,11 @@
 
 ;; Vector Packing
 
-(define_insn "vec_pack_v2hi"
-  [(set	(match_operand:V2HI 0 "register_operand" "=r")
-	(vec_concat:V2HI
-		(match_operand:HI 1 "register_operand" "r")
-		(match_operand:HI 2 "register_operand" "r")
+(define_insn "vec_pack_<VMODEALL2:mode>"
+  [(set	(match_operand:VMODEALL2 0 "register_operand" "=r")
+	(vec_concat:VMODEALL2
+		(match_operand:<vec_scalar_elmt> 1 "register_operand" "r")
+		(match_operand:<vec_scalar_elmt> 2 "register_operand" "r")
 	)
    )
   ]
@@ -126,26 +133,26 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "vec_pack_v4qi_hi_first"
-  [(set	(match_operand:V4QI 0 "register_operand" "=r")
-	(vec_merge:V4QI
-		(vec_concat:V4QI
-			(const_vector:V2QI [(const_int 0) (const_int 0)])
-			(vec_concat:V2QI
-				(match_operand:QI 1 "register_operand" "r")
-				(match_operand:QI 2 "register_operand" "r")
-			)
-		)
-	  	(const_vector:V4QI [(const_int 0) (const_int 0) (const_int 0) (const_int 0)])
-		(const_int 12)
-	)
-   )
-  ]
-  "TARGET_PULP_VECT_SHUFFLEPACK"
-  "pv.packhi.b \t%0,%2,%1 \t# Vector pack of 2 bytes (first), high part"
-[(set_attr "type" "move")
- (set_attr "mode" "SI")]
-)
+;; (define_insn "vec_pack_v4qi_hi_first"
+;;   [(set	(match_operand:V4QI 0 "register_operand" "=r")
+;; 	(vec_merge:V4QI
+;; 		(vec_concat:V4QI
+;; 			(const_vector:V2QI [(const_int 0) (const_int 0)])
+;; 			(vec_concat:V2QI
+;; 				(match_operand:QI 1 "register_operand" "r")
+;; 				(match_operand:QI 2 "register_operand" "r")
+;; 			)
+;; 		)
+;; 	  	(const_vector:V4QI [(const_int 0) (const_int 0) (const_int 0) (const_int 0)])
+;; 		(const_int 12)
+;; 	)
+;;    )
+;;   ]
+;;   "TARGET_PULP_VECT_SHUFFLEPACK"
+;;   "pv.packhi.b \t%0,%2,%1 \t# Vector pack of 2 bytes (first), high part"
+;; [(set_attr "type" "move")
+;;  (set_attr "mode" "SI")]
+;; )
 
 
 (define_expand "vec_pack_v4qi"
@@ -157,19 +164,31 @@
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK"
 {
+	rtx R0 = gen_reg_rtx(QImode);
+	rtx R1 = gen_reg_rtx(QImode);
+	rtx R2 = gen_reg_rtx(QImode);
+	rtx R3 = gen_reg_rtx(QImode);
+	emit_insn(gen_movqi(R0, operands[1]));
+	emit_insn(gen_movqi(R1, operands[2]));
+	emit_insn(gen_movqi(R2, operands[3]));
+	emit_insn(gen_movqi(R3, operands[4]));
+	emit_insn (gen_vec_pack_v4qi_lo_first(operands[0], R0, R1));
+	emit_insn (gen_vec_pack_v4qi_hi      (operands[0], R2, R3, operands[0]));
+/*
 	emit_insn (gen_vec_pack_v4qi_lo_first(operands[0], operands[1], operands[2]));
 	emit_insn (gen_vec_pack_v4qi_hi      (operands[0], operands[3], operands[4], operands[0]));
+*/
   DONE;
 })
 
 ;; Vector permutation
 
-(define_insn "vec_permv2hi_internal2_1"
-  [(set (match_operand:V2HI 0 "register_operand"               "=r,r")
-        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"  "r,r")
-                      (match_operand:V2HI 2 "register_operand"  "1,1")
-                      (match_operand:V2HI 3 "permute_sel_operand" "r,i")
-		     ] UNSPEC_VEC_PERM2)
+(define_insn "vec_perm<VMODEALL2:mode>_internal2_1"
+  [(set (match_operand:VMODEALL2 0 "register_operand"               "=r,r")
+        (unspec:VMODEALL2 [(match_operand:VMODEALL2 1 "register_operand"  "r,r")
+                           (match_operand:VMODEALL2 2 "register_operand"  "1,1")
+                           (match_operand:VMODEALL2 3 "permute_sel_operand" "r,i")
+		          ] UNSPEC_VEC_PERM2)
    )
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK && riscv_valid_permute_operands (operands[1], operands[2], operands[3])"
@@ -198,12 +217,12 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "vec_permv2hi_internal2"
-  [(set (match_operand:V2HI 0 "register_operand"               "=r")
-        (unspec:V2HI [(match_operand:V2HI 1 "register_operand" "0")
-                      (match_operand:V2HI 2 "register_operand" "r")
-                      (match_operand:V2HI 3 "register_operand" "r")
-		     ] UNSPEC_VEC_PERM3)
+(define_insn "vec_perm<VMODEALL2:mode>_internal2"
+  [(set (match_operand:VMODEALL2 0 "register_operand"               "=r")
+        (unspec:VMODEALL2 [(match_operand:VMODEALL2 1 "register_operand" "0")
+                           (match_operand:VMODEALL2 2 "register_operand" "r")
+                           (match_operand:VMODEALL2 3 "register_operand" "r")
+		          ] UNSPEC_VEC_PERM3)
    )
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK"
@@ -212,11 +231,11 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "vec_permv2hi_int1"
-  [(set (match_operand:V2HI 0 "register_operand"               "=r,r")
-        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"  "r,r")
-                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
-		     ] UNSPEC_VEC_PERM1)
+(define_insn "vec_perm<VMODEALL2:mode>_int1"
+  [(set (match_operand:VMODEALL2 0 "register_operand"               "=r,r")
+        (unspec:VMODEALL2 [(match_operand:VMODEALL2 1 "register_operand"  "r,r")
+                           (match_operand:VMODEALL2 2 "permute_sel_operand" "r,i")
+		          ] UNSPEC_VEC_PERM1)
    )
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK"
@@ -246,11 +265,11 @@
 
 /* __GAP8 Start */
 
-(define_insn "vec_permv2hi_low"
-  [(set (match_operand:V2HI 0 "register_operand"                  "=r,r")
-        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"    "r,r")
-                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
-                     ] UNSPEC_VEC_PERM4)
+(define_insn "vec_perm<VMODEALL2:mode>_low"
+  [(set (match_operand:VMODEALL2 0 "register_operand"                  "=r,r")
+        (unspec:VMODEALL2 [(match_operand:VMODEALL2 1 "register_operand"    "r,r")
+                           (match_operand:VMODEALL2 2 "permute_sel_operand" "r,i")
+                          ] UNSPEC_VEC_PERM4)
    )
   ]
   "(TARGET_PULP_VECT_GAP8 && TARGET_PULP_VECT_SHUFFLEPACK)"
@@ -259,11 +278,11 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "vec_permv2hi_high"
-  [(set (match_operand:V2HI 0 "register_operand"                  "=r,r")
-        (unspec:V2HI [(match_operand:V2HI 1 "register_operand"    "r,r")
-                      (match_operand:V2HI 2 "permute_sel_operand" "r,i")
-                     ] UNSPEC_VEC_PERM5)
+(define_insn "vec_perm<VMODEALL2:mode>_high"
+  [(set (match_operand:VMODEALL2 0 "register_operand"                  "=r,r")
+        (unspec:VMODEALL2 [(match_operand:VMODEALL2 1 "register_operand"    "r,r")
+                           (match_operand:VMODEALL2 2 "permute_sel_operand" "r,i")
+                          ] UNSPEC_VEC_PERM5)
    )
   ]
   "(TARGET_PULP_VECT_GAP8 && TARGET_PULP_VECT_SHUFFLEPACK)"
@@ -274,11 +293,11 @@
 
 /* __GAP8 Stop */
 
-(define_expand "vec_permv2hi"
-  [(match_operand:V2HI 0 "register_operand"    "")
-   (match_operand:V2HI 1 "register_operand"    "")
-   (match_operand:V2HI 2 "register_operand"    "")
-   (match_operand:V2HI 3 "permute_sel_operand" "")
+(define_expand "vec_perm<VMODEALL2:mode>"
+  [(match_operand:VMODEALL2 0 "register_operand"    "")
+   (match_operand:VMODEALL2 1 "register_operand"    "")
+   (match_operand:VMODEALL2 2 "register_operand"    "")
+   (match_operand:VMODEALL2 3 "permute_sel_operand" "")
   ]
   "TARGET_PULP_VECT_SHUFFLEPACK"
 {
@@ -555,7 +574,7 @@
 (define_code_attr vec_op2u_name      	[(umin "umin") (umax "umax")])
 (define_code_attr vec_op2s_name     	[(lshiftrt "vlshr") (ashiftrt "vashr") (ashift "vashl")])
 (define_code_attr vec_log2_name    	[(and "and") (ior "ior") (xor "exor")])
-(define_code_attr vec_op2_asm_name 	[(plus "add") (minus "sub") (smin "min") (smax "max") (mult "mult")])
+(define_code_attr vec_op2_asm_name 	[(plus "add") (minus "sub") (smin "min") (smax "max") (mult "mul")])
 (define_code_attr vec_op2u_asm_name 	[(umin "minu") (umax "maxu")])
 (define_code_attr vec_op2s_asm_name 	[(lshiftrt "srl") (ashiftrt "sra") (ashift "sll")])
 (define_code_attr vec_log2_asm_name 	[(and "and") (ior "or") (xor "xor")])
@@ -638,6 +657,22 @@
  (set_attr "mode" "SI")]
 )
 
+(define_insn "add_div8_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (plus   (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 3) (const_int 3)])
+        )
+   )
+  ]
+"(TARGET_PULP_VECT_GAP8 && TARGET_PULP_VECT)"
+"pv.add.h.div8 \t%0,%1,%2\t # Add2>>3 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
 (define_insn "add_div4_v4qi3"
   [(set (match_operand:V4QI 0 "register_operand" "=r")
         (ashiftrt:V4QI
@@ -702,6 +737,22 @@
  (set_attr "mode" "SI")]
 )
 
+(define_insn "sub_div8_v2hi3"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+        (ashiftrt:V2HI
+                (minus  (match_operand:V2HI 1 "register_operand" "r")
+                        (match_operand:V2HI 2 "register_operand" "r")
+                )
+                (const_vector:V2HI [(const_int 3) (const_int 3)])
+        )
+   )
+  ]
+"(TARGET_PULP_VECT_GAP8 && TARGET_PULP_VECT)"
+"pv.sub.h.div8 \t%0,%1,%2\t # Sub2>>3 Op Vect"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
 (define_insn "sub_div4_v4qi3"
   [(set (match_operand:V4QI 0 "register_operand" "=r")
         (ashiftrt:V4QI
@@ -750,10 +801,10 @@
 
 ;;/* __GAP8 Stop */
 
-(define_insn "<vec_op2_name><VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-        (vec_op2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
-                          (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIsdc")
+(define_insn "<vec_op2_name><VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+        (vec_op2:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r,r")
+                          (match_operand:VMODEINT 2 "nonmemory_operand" "r,vIsdc")
         )
    )
   ]
@@ -765,10 +816,10 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "<vec_op2_name>sc<VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (vec_op2:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
-			  (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+(define_insn "<vec_op2_name>sc<VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (vec_op2:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r")
+			  (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
 	)
    )
   ]
@@ -778,10 +829,10 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "<vec_op2_name>_swap_sc<VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (vec_op2:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
-		          (match_operand:VMODEALL 2 "register_operand" "r")
+(define_insn "<vec_op2_name>_swap_sc<VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (vec_op2:VMODEINT (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		          (match_operand:VMODEINT 2 "register_operand" "r")
 	)
    )
   ]
@@ -792,10 +843,10 @@
 )
 
 
-(define_insn "<vec_op2u_name><VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-        (vec_op2u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
-                           (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIusc")
+(define_insn "<vec_op2u_name><VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+        (vec_op2u:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r,r")
+                           (match_operand:VMODEINT 2 "nonmemory_operand" "r,vIusc")
         )
    )
   ]
@@ -807,10 +858,10 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "<vec_op2u_name>sc<VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (vec_op2u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
-			   (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+(define_insn "<vec_op2u_name>sc<VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (vec_op2u:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r")
+			   (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
 	)
    )
   ]
@@ -820,10 +871,10 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "<vec_op2u_name>_swap_sc<VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (vec_op2u:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
-		           (match_operand:VMODEALL 2 "register_operand" "r")
+(define_insn "<vec_op2u_name>_swap_sc<VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (vec_op2u:VMODEINT (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		           (match_operand:VMODEINT 2 "register_operand" "r")
 	)
    )
   ]
@@ -834,9 +885,9 @@
 )
 
 
-(define_insn "<vec_op2s_name><VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-        (vec_op2s:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
+(define_insn "<vec_op2s_name><VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+        (vec_op2s:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r,r")
                            (match_operand:<VINT>   2 "nonmemory_operand" "r,vIsdc")
         )
    )
@@ -849,10 +900,10 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "<vec_op2s_name>sc<VMODEALL:mode>3"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (vec_op2s:VMODEALL (match_operand:<VINT>   1 "register_operand" "r")
-			   (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+(define_insn "<vec_op2s_name>sc<VMODEINT:mode>3"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (vec_op2s:VMODEINT (match_operand:<VINT>   1 "register_operand" "r")
+			   (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
 	)
    )
   ]
@@ -862,12 +913,12 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "avg<VMODEALL2:mode>3"
-  [(set (match_operand:VMODEALL2 0 "register_operand" "=r,r")
-	(ashiftrt:VMODEALL2
-		(plus:VMODEALL2 (match_operand:VMODEALL2 1 "register_operand" "r,r")
-			        (match_operand:VMODEALL2 2 "nonmemory_operand" "r,vIsdc"))
-	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+(define_insn "avg<VMODEINT2:mode>3"
+  [(set (match_operand:VMODEINT2 0 "register_operand" "=r,r")
+	(ashiftrt:VMODEINT2
+		(plus:VMODEINT2 (match_operand:VMODEINT2 1 "register_operand" "r,r")
+			        (match_operand:VMODEINT2 2 "nonmemory_operand" "r,vIsdc"))
+	   	(const_vector:VMODEINT2 [(const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -880,12 +931,12 @@
 )
 
 
-(define_insn "avg<VMODEALL4:mode>3"
-  [(set (match_operand:VMODEALL4 0 "register_operand" "=r,r")
-	(ashiftrt:VMODEALL4
-		(plus:VMODEALL4 (match_operand:VMODEALL4 1 "register_operand" "r,r")
-			        (match_operand:VMODEALL4 2 "nonmemory_operand" "r,vIsdc"))
-	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+(define_insn "avg<VMODEINT4:mode>3"
+  [(set (match_operand:VMODEINT4 0 "register_operand" "=r,r")
+	(ashiftrt:VMODEINT4
+		(plus:VMODEINT4 (match_operand:VMODEINT4 1 "register_operand" "r,r")
+			        (match_operand:VMODEINT4 2 "nonmemory_operand" "r,vIsdc"))
+	   	(const_vector:VMODEINT4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -897,12 +948,12 @@
  (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "avgsc<VMODEALL2:mode>3"
-  [(set (match_operand:VMODEALL2 0 "register_operand" "=r")
-	(ashiftrt:VMODEALL2
-        	(plus:VMODEALL2 (match_operand:VMODEALL2 1 "register_operand" "r")
-			        (vec_duplicate:VMODEALL2 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
-	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+(define_insn "avgsc<VMODEINT2:mode>3"
+  [(set (match_operand:VMODEINT2 0 "register_operand" "=r")
+	(ashiftrt:VMODEINT2
+        	(plus:VMODEINT2 (match_operand:VMODEINT2 1 "register_operand" "r")
+			        (vec_duplicate:VMODEINT2 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
+	   	(const_vector:VMODEINT2 [(const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -912,12 +963,12 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "avgsc<VMODEALL4:mode>3"
-  [(set (match_operand:VMODEALL4 0 "register_operand" "=r")
-	(ashiftrt:VMODEALL4
-        	(plus:VMODEALL4 (match_operand:VMODEALL4 1 "register_operand" "r")
-			        (vec_duplicate:VMODEALL4 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
-	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+(define_insn "avgsc<VMODEINT4:mode>3"
+  [(set (match_operand:VMODEINT4 0 "register_operand" "=r")
+	(ashiftrt:VMODEINT4
+        	(plus:VMODEINT4 (match_operand:VMODEINT4 1 "register_operand" "r")
+			        (vec_duplicate:VMODEINT4 (match_operand:<vec_scalar_elmt> 2 "register_operand" "r")))
+	   	(const_vector:VMODEINT4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -927,12 +978,12 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "avgsc_swap_<VMODEALL2:mode>3"
-  [(set (match_operand:VMODEALL2 0 "register_operand" "=r")
-	(ashiftrt:VMODEALL2
-        	(plus:VMODEALL2 (vec_duplicate:VMODEALL2 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
-		                (match_operand:VMODEALL2 2 "register_operand" "r"))
-	   	(const_vector:VMODEALL2 [(const_int 1) (const_int 1)])
+(define_insn "avgsc_swap_<VMODEINT2:mode>3"
+  [(set (match_operand:VMODEINT2 0 "register_operand" "=r")
+	(ashiftrt:VMODEINT2
+        	(plus:VMODEINT2 (vec_duplicate:VMODEINT2 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		                (match_operand:VMODEINT2 2 "register_operand" "r"))
+	   	(const_vector:VMODEINT2 [(const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -942,12 +993,12 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "avgsc_swap_<VMODEALL4:mode>3"
-  [(set (match_operand:VMODEALL4 0 "register_operand" "=r")
-	(ashiftrt:VMODEALL4
-        	(plus:VMODEALL4 (vec_duplicate:VMODEALL4 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
-		                (match_operand:VMODEALL4 2 "register_operand" "r"))
-	   	(const_vector:VMODEALL4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
+(define_insn "avgsc_swap_<VMODEINT4:mode>3"
+  [(set (match_operand:VMODEINT4 0 "register_operand" "=r")
+	(ashiftrt:VMODEINT4
+        	(plus:VMODEINT4 (vec_duplicate:VMODEINT4 (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+		                (match_operand:VMODEINT4 2 "register_operand" "r"))
+	   	(const_vector:VMODEINT4 [(const_int 1) (const_int 1) (const_int 1) (const_int 1)])
 	)
    )
   ]
@@ -1098,9 +1149,9 @@
 
 ;; Unary instructions
 
-(define_insn "abs<VMODEALL:mode>2"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (abs:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+(define_insn "abs<VMODEINT:mode>2"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (abs:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r")
         )
    )
   ]
@@ -1110,9 +1161,9 @@
  (set_attr "mode" "SI")]
 )
 
-(define_insn "neg<VMODEALL:mode>2"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-        (neg:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
+(define_insn "neg<VMODEINT:mode>2"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+        (neg:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r")
         )
    )
   ]
@@ -1121,6 +1172,7 @@
 [(set_attr "type" "arith")
  (set_attr "mode" "SI")]
 )
+
 
 /* __GAP8 Start */
 ;; Complex product
@@ -2032,40 +2084,40 @@
 
 ;; Straight Vector Comparisons Vect/Vect,  Vect/ScalarReg,  Vect/ScalarImm
 
-(define_insn "cmp<VMODEALL:vec_type>_<vec_cmp_op_name>"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-	(vec_cmp_op_s:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
-			     (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIsdc")
+(define_insn "cmp<VMODEINT:vec_type>_<vec_cmp_op_name>"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+	(vec_cmp_op_s:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r,r")
+			       (match_operand:VMODEINT 2 "nonmemory_operand" "r,vIsdc")
 	)
    )
   ]
   "TARGET_PULP_VECT"
   "@
-  pv.cmp<vec_cmp_op_name>.<VMODEALL:vec_size>\t%0,%1,%2 # cmp vect op
-  pv.cmp<vec_cmp_op_name>.sci.<VMODEALL:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
+  pv.cmp<vec_cmp_op_name>.<VMODEINT:vec_size>\t%0,%1,%2 # cmp vect op
+  pv.cmp<vec_cmp_op_name>.sci.<VMODEINT:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
   [(set_attr "type" "arith,arith")
    (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "cmp<VMODEALL:vec_type>_<vec_cmp_op_name>"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r,r")
-	(vec_cmp_op_u:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r,r")
-			     (match_operand:VMODEALL 2 "nonmemory_operand" "r,vIusc")
+(define_insn "cmp<VMODEINT:vec_type>_<vec_cmp_op_name>"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r,r")
+	(vec_cmp_op_u:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r,r")
+			     (match_operand:VMODEINT 2 "nonmemory_operand" "r,vIusc")
 	)
    )
   ]
   "TARGET_PULP_VECT"
   "@
-  pv.cmp<vec_cmp_op_name>.<VMODEALL:vec_size>\t%0,%1,%2 # cmp vect op
-  pv.cmp<vec_cmp_op_name>.sci.<VMODEALL:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
+  pv.cmp<vec_cmp_op_name>.<VMODEINT:vec_size>\t%0,%1,%2 # cmp vect op
+  pv.cmp<vec_cmp_op_name>.sci.<VMODEINT:vec_size>\t%0,%1,%<vec_cmp_scal_imm_pref>2 # cmp vect/imm_scalar op"
   [(set_attr "type" "arith,arith")
    (set_attr "mode" "SI,SI")]
 )
 
-(define_insn "cmp<VMODEALL:vec_type>_sc<vec_cmp_op_name>"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-	(vec_cmp_op:VMODEALL (match_operand:VMODEALL 1 "register_operand" "r")
-			     (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
+(define_insn "cmp<VMODEINT:vec_type>_sc<vec_cmp_op_name>"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+	(vec_cmp_op:VMODEINT (match_operand:VMODEINT 1 "register_operand" "r")
+			     (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 2 "register_operand" "r"))
 	)
    )
   ]
@@ -2075,34 +2127,34 @@
    (set_attr "mode" "SI")]
 )
 
-(define_insn "cmp_swap_<VMODEALL:vec_type>_sc<vec_cmp_op_name>"
-  [(set (match_operand:VMODEALL 0 "register_operand" "=r")
-	(vec_cmp_op:VMODEALL (vec_duplicate:VMODEALL (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
-			     (match_operand:VMODEALL 2 "register_operand" "r")
+(define_insn "cmp_swap_<VMODEINT:vec_type>_sc<vec_cmp_op_name>"
+  [(set (match_operand:VMODEINT 0 "register_operand" "=r")
+	(vec_cmp_op:VMODEINT (vec_duplicate:VMODEINT (match_operand:<vec_scalar_elmt> 1 "register_operand" "r"))
+			     (match_operand:VMODEINT 2 "register_operand" "r")
 	)
    )
   ]
   "TARGET_PULP_VECT"
-  "pv.cmp<vec_cmp_swap_op_name>.sc.<VMODEALL:vec_size>\t%0,%2,%1 # cmp (swap) vect/scalar op"
+  "pv.cmp<vec_cmp_swap_op_name>.sc.<VMODEINT:vec_size>\t%0,%2,%1 # cmp (swap) vect/scalar op"
   [(set_attr "type" "arith")
    (set_attr "mode" "SI")]
 )
 
 ;; vcond expansion into vector comparisons
 
-(define_expand "vcond<mode><mode>"
+(define_expand "vcond<VMODEALL:int_vec_type><mode>"
   [(parallel [
-     (set (match_operand:VMODEALL 0 "register_operand" "")
-          (if_then_else:VMODEALL
+     (set (match_operand:<VMODEALL:int_vec_mode> 0 "register_operand" "")
+          (if_then_else:<VMODEALL:int_vec_mode>
 		(match_operator 3 "vec_comparison_operator"
             		[(match_operand:VMODEALL 4 "register_operand" "")
              		 (match_operand:VMODEALL 5 "nonmemory_operand" "")]
 		)
-		(match_operand:VMODEALL 1 "nonmemory_operand" "")
-		(match_operand:VMODEALL 2 "nonmemory_operand" "")
+		(match_operand:<VMODEALL:int_vec_mode> 1 "nonmemory_operand" "")
+		(match_operand:<VMODEALL:int_vec_mode> 2 "nonmemory_operand" "")
 	  )
      )
-     (clobber (match_scratch:VMODEALL 6 ""))
+     (clobber (match_scratch:<VMODEALL:int_vec_mode> 6 ""))
     ]
    )
   ]
@@ -2177,17 +2229,17 @@
 
 (define_expand "vcondu<mode><mode>"
   [(parallel [
-     (set (match_operand:VMODEALL 0 "register_operand" "")
-          (if_then_else:VMODEALL
+     (set (match_operand:VMODEINT 0 "register_operand" "")
+          (if_then_else:VMODEINT
 		(match_operator 3 "vec_comparison_operator"
-            		[(match_operand:VMODEALL 4 "register_operand" "")
-             		 (match_operand:VMODEALL 5 "nonmemory_operand" "")]
+            		[(match_operand:VMODEINT 4 "register_operand" "")
+             		 (match_operand:VMODEINT 5 "nonmemory_operand" "")]
 		)
-		(match_operand:VMODEALL 1 "nonmemory_operand" "")
-		(match_operand:VMODEALL 2 "nonmemory_operand" "")
+		(match_operand:VMODEINT 1 "nonmemory_operand" "")
+		(match_operand:VMODEINT 2 "nonmemory_operand" "")
 	  )
      )
-     (clobber (match_scratch:VMODEALL 6 ""))
+     (clobber (match_scratch:VMODEINT 6 ""))
     ]
    )
   ]
