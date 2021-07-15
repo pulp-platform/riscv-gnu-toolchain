@@ -1174,6 +1174,308 @@
 )
 
 
+(define_insn "cplxmulsv2hi_low_first"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(vec_concat:V2HI
+		(subreg:HI
+			(ashiftrt:SI
+				(minus:SI
+					(mult:SI
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+					)
+					(mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					)
+				)
+				(const_int 15)
+			) 0
+		)
+		(const_int 0)
+	)
+   )
+  ]
+"TARGET_PULP_VECT_COMPLEX"
+"pv.cplxmul.h.r \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, real part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_div2_low_first"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(vec_concat:V2HI
+		(subreg:HI
+			(ashiftrt:SI
+				(minus:SI
+					(mult:SI
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+					)
+					(mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					)
+				)
+				(const_int 16)
+			) 0
+		)
+		(const_int 0)
+	)
+   )
+  ]
+"TARGET_PULP_VECT_COMPLEX"
+"pv.cplxmul.h.r.div2 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div2, real part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "cplxmulsv2hi_div4_low_first"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(vec_concat:V2HI
+		(subreg:HI
+			(ashiftrt:SI
+				(minus:SI
+					(mult:SI
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+					)
+					(mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					)
+				)
+				(const_int 17)
+			) 0
+		)
+		(const_int 0)
+	)
+   )
+  ]
+"TARGET_PULP_VECT_COMPLEX"
+"pv.cplxmul.h.r.div4 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div4, real part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+
+(define_insn "cplxmulsv2hi_div8_low_first"
+  [(set (match_operand:V2HI 0 "register_operand" "=r")
+	(vec_concat:V2HI
+		(subreg:HI
+			(ashiftrt:SI
+				(minus:SI
+					(mult:SI
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+						(sign_extend:SI
+							(vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 0)]))
+						)
+					)
+					(mult:SI
+						(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+						(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 1)])))
+					)
+				)
+				(const_int 18)
+			) 0
+		)
+		(const_int 0)
+	)
+   )
+  ]
+"TARGET_PULP_VECT_COMPLEX"
+"pv.cplxmul.h.r.div8 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div8, real part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_hi"
+  [(set	(match_operand:V2HI 0 "register_operand" "=r")
+	(vec_merge:V2HI
+		(vec_concat:V2HI
+			(const_int 0)
+			(subreg:HI
+				(ashiftrt:SI
+					(plus:SI (mult:SI
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 1)])))
+					 	)
+					 	(mult:SI
+							(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+							(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+					 	)
+					)
+					(const_int 15)
+				) 0
+			)
+		)
+          	(match_operand:V2HI 3 "register_operand" "0")
+		(const_int 2)
+	)
+   )
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+  "pv.cplxmul.h.i \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, imaginary part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_div2_hi"
+  [(set	(match_operand:V2HI 0 "register_operand" "=r")
+	(vec_merge:V2HI
+		(vec_concat:V2HI
+			(const_int 0)
+			(subreg:HI
+				(ashiftrt:SI
+					(plus:SI (mult:SI
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 1)])))
+					 	)
+					 	(mult:SI
+							(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+							(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+					 	)
+					)
+					(const_int 16)
+				) 0
+			)
+		)
+          	(match_operand:V2HI 3 "register_operand" "0")
+		(const_int 2)
+	)
+   )
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+  "pv.cplxmul.h.i.div2 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div2, imaginary part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_div4_hi"
+  [(set	(match_operand:V2HI 0 "register_operand" "=r")
+	(vec_merge:V2HI
+		(vec_concat:V2HI
+			(const_int 0)
+			(subreg:HI
+				(ashiftrt:SI
+					(plus:SI (mult:SI
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 1)])))
+					 	)
+					 	(mult:SI
+							(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+							(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+					 	)
+					)
+					(const_int 17)
+				) 0
+			)
+		)
+          	(match_operand:V2HI 3 "register_operand" "0")
+		(const_int 2)
+	)
+   )
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+  "pv.cplxmul.h.i.div4 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div4, imaginary part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_insn "cplxmulsv2hi_div8_hi"
+  [(set	(match_operand:V2HI 0 "register_operand" "=r")
+	(vec_merge:V2HI
+		(vec_concat:V2HI
+			(const_int 0)
+			(subreg:HI
+				(ashiftrt:SI
+					(plus:SI (mult:SI
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 1 "register_operand" "r") (parallel [(const_int 0)])))
+							(sign_extend:SI (vec_select:HI (match_operand:V2HI 2 "register_operand" "r") (parallel [(const_int 1)])))
+					 	)
+					 	(mult:SI
+							(sign_extend:SI (vec_select:HI (match_dup 1) (parallel [(const_int 1)])))
+							(sign_extend:SI (vec_select:HI (match_dup 2) (parallel [(const_int 0)])))
+					 	)
+					)
+					(const_int 18)
+				) 0
+			)
+		)
+          	(match_operand:V2HI 3 "register_operand" "0")
+		(const_int 2)
+	)
+   )
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+  "pv.cplxmul.h.i.div8 \t%0,%1,%2\t # Vect/Vect Cplx signed multiply, div8, imaginary part"
+[(set_attr "type" "arith")
+ (set_attr "mode" "SI")]
+)
+
+(define_expand "cplxmulsv2hi2"
+  [(match_operand:V2HI 0 "register_operand" "")
+   (match_operand:V2HI 1 "register_operand" "")
+   (match_operand:V2HI 2 "register_operand" "")
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+{
+	emit_insn (gen_cplxmulsv2hi_low_first(operands[0], operands[1], operands[2]));
+	emit_insn (gen_cplxmulsv2hi_hi       (operands[0], operands[1], operands[2], operands[0]));
+  DONE;
+})
+
+(define_expand "cplxmulsv2hi2_div2"
+  [(match_operand:V2HI 0 "register_operand" "")
+   (match_operand:V2HI 1 "register_operand" "")
+   (match_operand:V2HI 2 "register_operand" "")
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+{
+	emit_insn (gen_cplxmulsv2hi_div2_low_first(operands[0], operands[1], operands[2]));
+	emit_insn (gen_cplxmulsv2hi_div2_hi       (operands[0], operands[1], operands[2], operands[0]));
+  DONE;
+})
+
+(define_expand "cplxmulsv2hi2_div4"
+  [(match_operand:V2HI 0 "register_operand" "")
+   (match_operand:V2HI 1 "register_operand" "")
+   (match_operand:V2HI 2 "register_operand" "")
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+{
+	emit_insn (gen_cplxmulsv2hi_div4_low_first(operands[0], operands[1], operands[2]));
+	emit_insn (gen_cplxmulsv2hi_div4_hi       (operands[0], operands[1], operands[2], operands[0]));
+  DONE;
+})
+
+(define_expand "cplxmulsv2hi2_div8"
+  [(match_operand:V2HI 0 "register_operand" "")
+   (match_operand:V2HI 1 "register_operand" "")
+   (match_operand:V2HI 2 "register_operand" "")
+  ]
+  "TARGET_PULP_VECT_COMPLEX"
+{
+	emit_insn (gen_cplxmulsv2hi_div8_low_first(operands[0], operands[1], operands[2]));
+	emit_insn (gen_cplxmulsv2hi_div8_hi       (operands[0], operands[1], operands[2], operands[0]));
+  DONE;
+})
+
 /* __GAP8 Start */
 ;; Complex product
 

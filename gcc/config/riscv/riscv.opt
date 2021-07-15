@@ -146,8 +146,8 @@ lower-case. The following extensions groups are available: xpulpv0, xpulpv1, xpu
 xpulpv3, xgap8, corev. Alternatively, more fine grained subsets can be selected with:
 xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
 xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
-xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectgap8, xpulpvectall, xpulpclip,
-xpulpaddsubrn.
+xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectcomplex, xpulpvectgap8,
+xpulpvectall, xpulpclip, xpulpaddsubrn.
 The following extensions are only meant for pulpv0 and pulpv1 for
 compatibility reasons:
 xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
@@ -272,6 +272,10 @@ Use PULP add/sub with norm/round instructions
 mpulp-vectshufflepack
 Target Mask(PULP_VECT_SHUFFLEPACK) Var(pulp_target_flags)
 Use PULP SIMD shuffle and pack instructions
+
+; We don't want to add more of those switches. Rather, encourage users to use arch strings.
+mpulp-vectcomplex
+Target Mask(PULP_VECT_COMPLEX) Var(pulp_target_flags) Undocumented
 
 mpulp-vectgap8
 Target Mask(PULP_VECT_GAP8) Var(pulp_target_flags)

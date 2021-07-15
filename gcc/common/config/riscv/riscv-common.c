@@ -434,7 +434,8 @@ riscv_is_supported_pulp_ext (const char *ext)
     "xpulpslet",
     "xpulpvectall",
     "xpulpvect",
-    "xpulpvectshufflepack", /* does not affect assembly only code gen*/
+    "xpulpvectshufflepack",
+    "xpulpvectcomplex",
     "xpulpvectgap",
     "xpulpbr",
     "xpulpclip",
@@ -717,10 +718,15 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   if (subset_list->lookup("xpulpvectshufflepack"))
     *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
 
+  *pulp_flags &= ~OPTION_MASK_PULP_VECT_COMPLEX;
+  if (subset_list->lookup("xpulpvectcomplex"))
+    *pulp_flags |= OPTION_MASK_PULP_VECT_COMPLEX;
+
   if (subset_list->lookup("xpulpvectall"))
     {
       *pulp_flags |= OPTION_MASK_PULP_VECT;
       *pulp_flags |= OPTION_MASK_PULP_VECT_SHUFFLEPACK;
+      *pulp_flags |= OPTION_MASK_PULP_VECT_COMPLEX;
     }
 
   *pulp_flags &= ~OPTION_MASK_PULP_VECT_GAP8;
@@ -778,11 +784,11 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
      turned into an erro*/
 #define PULP_EXT_GROUP_V2 (PULP_EXP_GROUP_LARGE)
   /* pulpv3 */
-#define PULP_EXT_GROUP_V3 (PULP_EXP_GROUP_LARGE)
+#define PULP_EXT_GROUP_V3 (PULP_EXP_GROUP_LARGE | OPTION_MASK_PULP_VECT_COMPLEX)
   /* gap8 */
 #define PULP_EXT_GROUP_GAP8 (PULP_EXP_GROUP_LARGE | OPTION_MASK_PULP_VECT_GAP8)
   /* cv32e40p */
-#define COREV_EXT_GROUP (PULP_EXP_GROUP_LARGE)
+#define COREV_EXT_GROUP (PULP_EXP_GROUP_LARGE | OPTION_MASK_PULP_VECT_COMPLEX)
 
   if (subset_list->lookup("xpulpv"))
     {
