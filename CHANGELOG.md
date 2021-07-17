@@ -9,12 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - gcc: Add simd complex insn
+- gcc: Add pulp specific tests
 
 ### Changed
 - gcc: Generalize simd md patterns
+- gcc: Map builtins to subextensions
 
 ### Fixed
 - gcc: xpulpvect was not working as argument, but xpulpvectall was
+- gcc: Fix single standing xpulphwloop arch string
 
 ## [2.2.0] - 2021-07-09
 
