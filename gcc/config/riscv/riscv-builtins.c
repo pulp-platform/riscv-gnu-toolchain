@@ -117,6 +117,38 @@ struct riscv_builtin_description {
 
 AVAIL (hard_float, TARGET_HARD_FLOAT)
 
+/* PULP builtins CHECKs */
+AVAIL (pulp_bitop_small, TARGET_PULP_BITOP_SMALL)
+AVAIL (pulp_mac_alt, TARGET_PULP_MAC_ALT)
+
+AVAIL (pulp_postmod, TARGET_PULP_POSTMOD)
+AVAIL (pulp_indregreg, TARGET_PULP_INDREGREG)
+AVAIL (pulp_addressing, (TARGET_PULP_POSTMOD || TARGET_PULP_INDREGREG))
+AVAIL (pulp_abs, TARGET_PULP_ABS)
+AVAIL (pulp_slet, TARGET_PULP_SLET)
+AVAIL (pulp_minmax, TARGET_PULP_MINMAX)
+AVAIL (pulp_bitop, TARGET_PULP_BITOP)
+AVAIL (pulp_bitop_small_and_full, (TARGET_PULP_BITOP_SMALL || TARGET_PULP_BITOP))
+AVAIL (pulp_clip, TARGET_PULP_CLIP)
+AVAIL (pulp_hwloop, TARGET_PULP_HWLOOP)
+AVAIL (pulp_mac_si, TARGET_PULP_MAC_SI)
+AVAIL (pulp_macrn_hi, TARGET_PULP_MACRN_HI)
+AVAIL (pulp_mulrn_hi, TARGET_PULP_MULRN_HI)
+AVAIL (pulp_partmac, TARGET_PULP_PARTMAC)
+AVAIL (pulp_addsubrn, TARGET_PULP_ADDSUBRN)
+AVAIL (pulp_vect, TARGET_PULP_VECT)
+AVAIL (pulp_vect_shufflepack, TARGET_PULP_VECT_SHUFFLEPACK)
+AVAIL (pulp_br, TARGET_PULP_BR)
+AVAIL (pulp_elw, TARGET_PULP_ELW)
+
+AVAIL (pulp_vect_complex, TARGET_PULP_VECT_COMPLEX)
+AVAIL (pulp_vect_gap8, TARGET_PULP_VECT_GAP8)
+
+AVAIL (pulp_any, (pulp_target_flags != 0))
+
+/* legacy */
+AVAIL (pulp_gap8_only, (Pulp_Cpu == PULP_GAP8))
+
 /* for builtin pulpv2, we model vectors as opaque entities. Opaque helps to make the call style mode versatile */
 static tree opaque_V4QI_type_node;
 static tree opaque_V2HI_type_node;
@@ -127,49 +159,6 @@ riscv_builtin_avail_riscv (void)
   return 1;
 }
 
-static unsigned int
-riscv_builtin_avail_pulp_v0_only (void)
-{
-  if (Pulp_Cpu==PULP_V0) return 1;
-  return 0;
-}
-
-static unsigned int
-riscv_builtin_avail_pulp_v2 (void)
-{
-  if (Pulp_Cpu>=PULP_V2) return 1;
-  return 0;
-}
-
-static unsigned int
-riscv_builtin_avail_pulp_v3 (void)
-{
-  if (Pulp_Cpu>=PULP_V3) return 1;
-  return 0;
-}
-
-/* __GAP8 Start */
-static unsigned int
-riscv_builtin_avail_pulp_gap8_only (void)
-{
-  if (Pulp_Cpu==PULP_GAP8) return 1;
-  return 0;
-}
-/* __GAP8 Stop */
-
-static unsigned int
-riscv_builtin_avail_pulp_vall (void)
-{
-  if (Pulp_Cpu>=PULP_V0 || Pulp_Cpu==PULP_SLIM) return 1;
-  return 0;
-}
-
-static unsigned int
-riscv_builtin_avail_pulp_v2_or_slim (void)
-{
-  if (Pulp_Cpu>=PULP_V2 || Pulp_Cpu==PULP_SLIM) return 1;
-  return 0;
-}
 
 static int CheckBuiltin(int Code, int BuiltinIndex, struct ExtraBuiltinImmArg *ExtraImmArg, int Narg, ...);
 

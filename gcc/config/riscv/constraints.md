@@ -25,8 +25,8 @@
 
 
 ;; PULP Register constraints
-(define_register_constraint "a" "(Pulp_Cpu==PULP_V0) ? GR_REGS : NO_REGS"
-  "gp reg if pulpv1, empty otherwise")
+(define_register_constraint "a" "TARGET_PULP_COMPAT ? GR_REGS : NO_REGS"
+  "gp reg if pulpv0/v1, empty otherwise")
 
 ;; HW Loop register constraints, loop end
 (define_register_constraint "t" "LE_REGS"
