@@ -189,7 +189,7 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF,V2HI,V2QI,V4QI"
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,OHF,SF,DF,TF,V2HI,V2QI,V4QI,V2HF,V2OHF"
   (const_string "unknown"))
 
 ;; True if the main data type is twice the size of a word.
@@ -343,8 +343,15 @@
 (define_mode_iterator MOVE32 [SI])
 
 ;; PULP mode
-(define_mode_iterator MODE_PULP [V4QI V2HI SF SI])
+(define_mode_iterator MODE_PULP [(V2HF "TARGET_PULP_FVECHALF")
+				 (V2OHF "TARGET_PULP_FVECALTHALF")
+				 V4QI V2HI SF SI])
 (define_mode_iterator SUBDISF [QI HI SI (SF "!TARGET_HARD_FLOAT") V2HI V4QI])
+
+;; TODO: add this once we support zfinx properly
+;;(HF "!TARGET_HARD_FLOAT && TARGET_PULP_FHALF") dito for OHF
+;;(V2HF "!TARGET_HARD_FLOAT && TARGET_PULP_FVECHALF")
+
 (define_mode_iterator SUBDI [QI HI SI])
 
 ;; 64-bit modes for which we provide move patterns.
@@ -367,7 +374,14 @@
 
 ;; Iterator for hardware-supported floating-point modes.
 (define_mode_iterator ANYF [(SF "TARGET_HARD_FLOAT || TARGET_ZFINX")
-			    (DF "TARGET_DOUBLE_FLOAT || TARGET_ZDINX")])
+			    (DF "TARGET_DOUBLE_FLOAT || TARGET_ZDINX")
+			    (HF "TARGET_PULP_FHALF")
+			    (OHF "TARGET_PULP_FALTHALF")])
+
+;; Iterator for hardware-supported floating point to integer conversions
+(define_mode_iterator FIXF [(SF "TARGET_HARD_FLOAT || TARGET_ZFINX")
+			    (DF "TARGET_DOUBLE_FLOAT || TARGET_ZDINX")
+			    (HF "TARGET_PULP_FHALF")])
 
 ;; Iterator for floating-point modes that can be loaded into X registers.
 (define_mode_iterator SOFTF [SF (DF "TARGET_64BIT")])
@@ -376,11 +390,16 @@
 ;; instruction.
 (define_mode_attr size [(QI "b") (HI "h")])
 
-;; PULP mode
-(define_mode_attr size_mem   [(V4QI "4") (V2HI "4") (SF "4") (SI "4") (HI "2") (QI "1")])
-(define_mode_attr size_load_store [(V4QI "w") (V2HI "w") (SF "w") (SI "w") (QI "b") (HI "h")])
+;; PULP mode attributes for postmod and indregreg
+(define_mode_attr size_mem   [(V4QI "4") (V2HI "4") (V2OHF "4") (V2HF "4")
+			      (SF "4") (HF "2") (OHF "2")
+			      (SI "4") (HI "2") (QI "1")])
+(define_mode_attr size_load_store [(V4QI "w") (V2HI "w") (V2OHF "w") (V2HF "w")
+				   (SF "w") (HF "h") (OHF "h")
+				   (SI "w") (QI "b") (HI "h")])
 (define_mode_attr LDSTMODE [(SI "SI") (HI "HI") (QI "QI")])
-(define_mode_attr LDSTINDMODE [(V4QI "V4QI") (V2HI "V2HI") (SF "SF") (SI "SI") (HI "HI") (QI "QI")])
+(define_mode_attr LDSTINDMODE [(V4QI "V4QI") (V2HI "V2HI")
+			       (SF "SF") (SI "SI") (HI "HI") (QI "QI")])
 
 ;; Mode attributes for loads.
 (define_mode_attr load [(QI "lb") (HI "lh") (SI "lw") (DI "ld") (SF "flw") (DF "fld")])
@@ -403,7 +422,7 @@
 (define_mode_attr reg [(SI "d") (DI "d") (CC "d")])
 
 ;; This attribute gives the format suffix for floating-point operations.
-(define_mode_attr fmt [(SF "s") (DF "d")])
+(define_mode_attr fmt [(SF "s") (DF "d") (HF "h") (OHF "ah")])
 
 ;; This attribute gives the integer suffix for floating-point conversions.
 (define_mode_attr ifmt [(SI "w") (DI "l")])
@@ -413,7 +432,7 @@
 
 ;; This attribute gives the upper-case mode name for one unit of a
 ;; floating-point mode.
-(define_mode_attr UNITMODE [(SF "SF") (DF "DF")])
+(define_mode_attr UNITMODE [(SF "SF") (DF "DF") (HF "HF") (OHF "OHF")])
 
 ;; This attribute gives the integer mode that has half the size of
 ;; the controlling mode.
@@ -1163,6 +1182,45 @@
   [(set_attr "type" "fcvt")
    (set_attr "mode" "SF")])
 
+;; pulp halfloat truncations
+
+(define_insn "truncdfhf2"
+  [(set (match_operand:HF 0 "register_operand" "=f")
+	(float_truncate:HF
+	    (match_operand:DF 1 "register_operand" "f")))]
+  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD"
+  "fcvt.h.d\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "HF")])
+
+(define_insn "truncsfhf2"
+  [(set (match_operand:HF 0 "register_operand" "=f")
+	(float_truncate:HF
+	    (match_operand:SF 1 "register_operand" "f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF"
+  "fcvt.h.s\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "HF")])
+
+(define_insn "truncdfohf2"
+  [(set (match_operand:OHF 0 "register_operand" "=f")
+	(float_truncate:OHF
+	    (match_operand:DF 1 "register_operand" "f")))]
+  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD"
+  "fcvt.ah.d\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "OHF")])
+
+(define_insn "truncsfohf2"
+  [(set (match_operand:OHF 0 "register_operand" "=f")
+	(float_truncate:OHF
+	    (match_operand:SF 1 "register_operand" "f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF"
+  "fcvt.ah.s\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "OHF")])
+
+
 ;;
 ;;  ....................
 ;;
@@ -1274,6 +1332,43 @@
   [(set_attr "type" "fcvt")
    (set_attr "mode" "DF")])
 
+;; PULP halfloat sign extend
+(define_insn "extendhfsf2"
+  [(set (match_operand:SF 0 "register_operand" "=f")
+	(float_extend:SF
+	    (match_operand:HF 1 "register_operand" "f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF"
+  "fcvt.s.h\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "SF")])
+
+(define_insn "extendohfsf2"
+  [(set (match_operand:SF 0 "register_operand" "=f")
+	(float_extend:SF
+	    (match_operand:OHF 1 "register_operand" "f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF"
+  "fcvt.s.ah\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "SF")])
+
+(define_insn "extendhfdf2"
+  [(set (match_operand:DF 0 "register_operand" "=f")
+	(float_extend:DF
+	    (match_operand:HF 1 "register_operand" "f")))]
+  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD"
+  "fcvt.d.h\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "DF")])
+
+(define_insn "extendohfdf2"
+  [(set (match_operand:DF 0 "register_operand" "=f")
+	(float_extend:DF
+	    (match_operand:OHF 1 "register_operand" "f")))]
+  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD"
+  "fcvt.d.ah\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "DF")])
+
 ;;
 ;;  ....................
 ;;
@@ -1281,23 +1376,47 @@
 ;;
 ;;  ....................
 
-(define_insn "fix_trunc<ANYF:mode><GPR:mode>2"
+;; PULP altfloat conversions (no rounding mode argument)
+
+(define_insn "fix_truncohf<GPR:mode>2"
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(fix:GPR
-	    (match_operand:ANYF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
-  "fcvt.<GPR:ifmt>.<ANYF:fmt> %0,%1,rtz"
+	    (match_operand:OHF 1 "register_operand" " f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF"
+  "fcvt.<GPR:ifmt>.ah %0,%1"
   [(set_attr "type" "fcvt")
-   (set_attr "mode" "<ANYF:MODE>")])
+   (set_attr "mode" "OHF")])
 
-(define_insn "fixuns_trunc<ANYF:mode><GPR:mode>2"
+(define_insn "fixuns_truncohf<GPR:mode>2"
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(unsigned_fix:GPR
-	    (match_operand:ANYF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
-  "fcvt.<GPR:ifmt>u.<ANYF:fmt> %0,%1,rtz"
+	    (match_operand:OHF 1 "register_operand" " f")))]
+  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF"
+  "fcvt.<GPR:ifmt>u.ah %0,%1"
   [(set_attr "type" "fcvt")
-   (set_attr "mode" "<ANYF:MODE>")])
+   (set_attr "mode" "OHF")])
+
+;; standard float to integer conversions
+
+(define_insn "fix_trunc<FIXF:mode><GPR:mode>2"
+  [(set (match_operand:GPR      0 "register_operand" "=r")
+	(fix:GPR
+	    (match_operand:FIXF 1 "register_operand" " f")))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
+  "fcvt.<GPR:ifmt>.<FIXF:fmt> %0,%1,rtz"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "<FIXF:MODE>")])
+
+(define_insn "fixuns_trunc<FIXF:mode><GPR:mode>2"
+  [(set (match_operand:GPR      0 "register_operand" "=r")
+	(unsigned_fix:GPR
+	    (match_operand:FIXF 1 "register_operand" " f")))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
+  "fcvt.<GPR:ifmt>u.<FIXF:fmt> %0,%1,rtz"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "<FIXF:MODE>")])
+
+;; standard float to float conversions
 
 (define_insn "float<GPR:mode><ANYF:mode>2"
   [(set (match_operand:ANYF    0 "register_operand" "= f")
@@ -1560,6 +1679,66 @@
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store")
    (set_attr "mode" "V4QI")])
+
+;; 16-bit floating point moves
+
+(define_expand "movohf"
+  [(set (match_operand:OHF 0 "")
+	(match_operand:OHF 1 ""))]
+  ""
+{
+  if (riscv_legitimize_move (OHFmode, operands[0], operands[1]))
+    DONE;
+})
+
+(define_insn "*movohf_hardfloat"
+  [(set (match_operand:OHF 0 "nonimmediate_operand" "=f,f,f,m,m,*f,*r,  *r,*r,*m")
+	(match_operand:OHF 1 "move_operand"         " f,G,m,f,G,*r,*f,*G*r,*m,*r"))]
+  "TARGET_PULP_FALTHALF
+   && (register_operand (operands[0], OHFmode)
+       || reg_or_0_operand (operands[1], OHFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
+   (set_attr "mode" "OHF")])
+
+(define_insn "*movohf_softfloat"
+  [(set (match_operand:OHF 0 "nonimmediate_operand" "= r,r,m")
+	(match_operand:OHF 1 "move_operand"         " Gr,m,r"))]
+  "!TARGET_PULP_FALTHALF
+   && (register_operand (operands[0], OHFmode)
+       || reg_or_0_operand (operands[1], OHFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,load,store")
+   (set_attr "mode" "OHF")])
+
+(define_expand "movhf"
+  [(set (match_operand:HF 0 "")
+	(match_operand:HF 1 ""))]
+  ""
+{
+  if (riscv_legitimize_move (HFmode, operands[0], operands[1]))
+    DONE;
+})
+
+(define_insn "*movhf_hardfloat"
+  [(set (match_operand:HF 0 "nonimmediate_operand" "=f,f,f,m,m,*f,*r,  *r,*r,*m")
+	(match_operand:HF 1 "move_operand"         " f,G,m,f,G,*r,*f,*G*r,*m,*r"))]
+  "TARGET_PULP_FHALF
+   && (register_operand (operands[0], HFmode)
+       || reg_or_0_operand (operands[1], HFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
+   (set_attr "mode" "HF")])
+
+(define_insn "*movhf_softfloat"
+  [(set (match_operand:HF 0 "nonimmediate_operand" "= r,r,m")
+	(match_operand:HF 1 "move_operand"         " Gr,m,r"))]
+  "!TARGET_PULP_FHALF
+   && (register_operand (operands[0], HFmode)
+       || reg_or_0_operand (operands[1], HFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,load,store")
+   (set_attr "mode" "HF")])
 
 ;; TODO: somehow this allows the memmove in memmove-4.c to be inlined resulting
 ;; in a XPASS. This pattern is also used by the autovectorizer

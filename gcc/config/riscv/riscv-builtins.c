@@ -152,6 +152,11 @@ AVAIL (pulp_gap8_only, (Pulp_Cpu == PULP_GAP8))
 /* for builtin pulpv2, we model vectors as opaque entities. Opaque helps to make the call style mode versatile */
 static tree opaque_V4QI_type_node;
 static tree opaque_V2HI_type_node;
+static tree opaque_V2HF_type_node;
+static tree opaque_V2OHF_type_node;
+
+static tree floatHF_type_node;
+static tree floatOHF_type_node;
 
 static unsigned int
 riscv_builtin_avail_riscv (void)
@@ -512,8 +517,14 @@ static GTY(()) int riscv_builtin_decl_index[NUM_INSN_CODES];
 #define RISCV_ATYPE_SF float_type_node
 #define RISCV_ATYPE_DF double_type_node
 
+/* PULP extension types */
+#define RISCV_ATYPE_HF floatHF_type_node
+#define RISCV_ATYPE_OHF floatOHF_type_node
+
 #define RISCV_ATYPE_V2HI opaque_V2HI_type_node
 #define RISCV_ATYPE_V4QI opaque_V4QI_type_node
+#define RISCV_ATYPE_V2HF opaque_V2HF_type_node
+#define RISCV_ATYPE_V2OHF opaque_V2OHF_type_node
 
 /* RISCV_FTYPE_ATYPESN takes N RISCV_FTYPES-like type codes and lists
    their associated RISCV_ATYPEs.  */
@@ -618,6 +629,27 @@ riscv_init_builtins (void)
 
   opaque_V4QI_type_node    = build_opaque_vector_type (intQI_type_node, 4);
   opaque_V2HI_type_node    = build_opaque_vector_type (intHI_type_node, 2);
+
+  /* Initialize the HFmode scalar and vector type.  */
+  floatHF_type_node = make_node (REAL_TYPE);
+  TYPE_PRECISION (floatHF_type_node) = GET_MODE_PRECISION (HFmode);
+  layout_type (floatHF_type_node);
+  if (TARGET_PULP_FHALF)
+    (*lang_hooks.types.register_builtin_type) (floatHF_type_node, "float16");
+  opaque_V2HF_type_node    = build_opaque_vector_type (floatHF_type_node, 2);
+
+  /* Initialize the OHFmode scalar and vector type.  */
+  floatOHF_type_node = make_node (REAL_TYPE);
+  TYPE_PRECISION (floatOHF_type_node) = GET_MODE_PRECISION (OHFmode);
+  layout_type (floatOHF_type_node);
+  /* LAYOUT_TYPE relies on MODE_FOR_SIZE to determine
+   * the mode for this new decl. Since this is the same as HF
+   * we need to override this here.
+   */
+  SET_TYPE_MODE (floatOHF_type_node, OHFmode);
+  if (TARGET_PULP_FALTHALF)
+    (*lang_hooks.types.register_builtin_type) (floatOHF_type_node, "float16alt");
+  opaque_V2OHF_type_node    = build_opaque_vector_type (floatOHF_type_node, 2);
 
   /* Iterate through all of the bdesc arrays, initializing all of the
      builtin functions.  */

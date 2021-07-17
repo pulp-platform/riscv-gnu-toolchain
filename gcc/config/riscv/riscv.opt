@@ -289,6 +289,30 @@ mpulp-bitrev
 Target Mask(PULP_BITREV) Var(pulp_target_flags)
 Use PULP bitreverse instruction
 
+mpulp-fhalf
+Target Mask(PULP_FHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-fvechalf
+Target Mask(PULP_FVECHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-fhalfwithf
+Target Mask(PULP_FHALFWITHF) Var(pulp_target_flags) Undocumented
+
+mpulp-fhalfwithd
+Target Mask(PULP_FHALFWITHD) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalf
+Target Mask(PULP_FALTHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-fvecalthalf
+Target Mask(PULP_FVECALTHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfwithf
+Target Mask(PULP_FALTHALFWITHF) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfwithd
+Target Mask(PULP_FALTHALFWITHD) Var(pulp_target_flags) Undocumented
+
 mpulp-compat
 Target Mask(PULP_COMPAT) Var(pulp_target_flags)
 Use PULP extension instructions (if any) in pulpv0 and pulpv1 compatibility mode. This changes the instruction encoding (postmod) and instructions themselves (avg instead of addn). Use only if you know what you do.

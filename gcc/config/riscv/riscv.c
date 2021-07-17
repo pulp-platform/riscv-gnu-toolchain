@@ -2098,12 +2098,13 @@ riscv_output_move (rtx dest, rtx src)
 {
   enum rtx_code dest_code, src_code;
   machine_mode mode;
-  bool dbl_p;
+  bool dbl_p, hf_p;
 
   dest_code = GET_CODE (dest);
   src_code = GET_CODE (src);
   mode = GET_MODE (dest);
   dbl_p = (GET_MODE_SIZE (mode) == 8);
+  hf_p = (GET_MODE_SIZE (mode) == 2);
 
   if (dbl_p && riscv_split_64bit_move_p (dest, src))
     return "#";
@@ -2209,15 +2210,15 @@ riscv_output_move (rtx dest, rtx src)
   if (src_code == REG && FP_REG_P (REGNO (src)))
     {
       if (dest_code == REG && FP_REG_P (REGNO (dest)))
-	return dbl_p ? "fmv.d\t%0,%1" : "fmv.s\t%0,%1";
+	return dbl_p ? "fmv.d\t%0,%1" : hf_p ? "fmv.h\t%0,%1" : "fmv.s\t%0,%1";
 
       if (dest_code == MEM)
-	return dbl_p ? "fsd\t%1,%0" : "fsw\t%1,%0";
+	return dbl_p ? "fsd\t%1,%0" : hf_p ? "fsh\t%1,%0" : "fsw\t%1,%0";
     }
   if (dest_code == REG && FP_REG_P (REGNO (dest)))
     {
       if (src_code == MEM)
-	return dbl_p ? "fld\t%0,%1" : "flw\t%0,%1";
+	return dbl_p ? "fld\t%0,%1" : hf_p ? "flh\t%0,%1" : "flw\t%0,%1";
     }
   gcc_unreachable ();
 }

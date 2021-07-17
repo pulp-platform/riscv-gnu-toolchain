@@ -441,6 +441,15 @@ riscv_is_supported_pulp_ext (const char *ext)
     "xpulpclip",
     "xpulpaddsubrn",
     "xpulpelw",
+
+    "xfhalf",
+    "xfhalfwithf",
+    "xfhalfwithd",
+    "xfvechalf",
+    "xfalthalf",
+    "xfalthalfwithf",
+    "xfalthalfwithd",
+    "xfvecalthalf",
     NULL
   };
 
@@ -760,6 +769,30 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   *pulp_flags &= ~OPTION_MASK_PULP_ELW;
   if (subset_list->lookup("xpulpelw"))
     *pulp_flags |= OPTION_MASK_PULP_ELW;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALF;
+  if (subset_list->lookup("xfhalf"))
+    *pulp_flags |= OPTION_MASK_PULP_FHALF;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHF;
+  if (subset_list->lookup("xfhalfwithf"))
+    *pulp_flags |= OPTION_MASK_PULP_FHALFWITHF;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHD;
+  if (subset_list->lookup("xfhalfwithd"))
+    *pulp_flags |= OPTION_MASK_PULP_FHALFWITHD;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALF;
+  if (subset_list->lookup("xfalthalf"))
+    *pulp_flags |= OPTION_MASK_PULP_FALTHALF;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHF;
+  if (subset_list->lookup("xfalthalfwithf"))
+    *pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHF;
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHD;
+  if (subset_list->lookup("xfalthalfwithd"))
+    *pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHD;
 
   /* groupings using the above listed subsets */
 #define PULP_EXT_GROUP_SMALL (OPTION_MASK_PULP_POSTMOD		\

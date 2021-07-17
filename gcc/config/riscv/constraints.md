@@ -150,3 +150,9 @@
   "A constant vector with identical elements in [0..63]"
    (and (match_code "const_vector")
         (match_test "riscv_replicated_const_vector(op, 0, 63)")))
+
+(define_constraint "vIzzz"
+  "A constant vector with Floating-point zero elements."
+  (and (match_code "const_vector")
+       (match_test "op == CONST0_RTX (mode)")))
+
