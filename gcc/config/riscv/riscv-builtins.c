@@ -229,6 +229,8 @@ static const struct riscv_builtin_description riscv_builtins[] = {
 #undef DIRECT_BUILTIN1
 #define DIRECT_BUILTIN1(INSN, NAME, FUNCTION_TYPE, AVAIL, CHECK) PULP_BUILTIN_ ## NAME,
 enum Pulp_Builtin_Id {
+RISCV_BUILTIN_frflags,
+RISCV_BUILTIN_fsflags,	
 #include "pulp-builtins.def"
 };
 
