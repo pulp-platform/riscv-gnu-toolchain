@@ -469,7 +469,6 @@ riscv_subset_list::parse_multiletter_ext (const char *p,
   unsigned major_version = 0;
   unsigned minor_version = 0;
   size_t ext_type_len = strlen (ext_type);
-  // printf("balasr: trying to parse non standard\n");
 
   while (*p)
     {
@@ -497,9 +496,8 @@ riscv_subset_list::parse_multiletter_ext (const char *p,
 
       *q = '\0';
 
-      /* printf("balasr: subset=%s, major=%d, minor=%d\n", subset, major_version, minor_version); */
       /* make sure we fail when we encounter an unknown custom extension */
-      if (!riscv_is_supported_pulp_ext(subset))
+      if (*ext_type == 'x' && !riscv_is_supported_pulp_ext(subset))
 	{
 	  warning_at (m_loc, 0, "%<-march=%s%>: %s is an unknown extension",
 		    m_arch, subset);
@@ -636,6 +634,24 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   *flags &= ~MASK_RVC;
   if (subset_list->lookup ("c"))
     *flags |= MASK_RVC;
+
+  *flags &= ~MASK_ZFINX;
+  if (subset_list->lookup ("zfinx"))
+    *flags |= MASK_ZFINX;
+
+  if ((*flags & MASK_HARD_FLOAT) && (*flags & MASK_ZFINX))
+    error_at (loc, "f and zfinx are mutually exclusive extensions");
+
+  *flags &= ~MASK_ZDINX;
+  if (subset_list->lookup ("zdinx"))
+    *flags |= MASK_ZDINX;
+
+  if ((*flags & MASK_DOUBLE_FLOAT) && (*flags & MASK_ZDINX))
+    error_at (loc, "d and zdinx are mutually exclusive extensions");
+
+  if ((*flags & (MASK_HARD_FLOAT | MASK_DOUBLE_FLOAT))
+      && (*flags & (MASK_ZFINX | MASK_ZDINX)))
+    error_at (loc, "f/d and zfinx/zdinx cannot be mixed");
 
   /* PULP specific extension parsing
      "none"
