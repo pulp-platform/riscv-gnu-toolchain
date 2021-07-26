@@ -115,7 +115,7 @@ struct riscv_builtin_description {
   BuiltinChecker check;
 };
 
-AVAIL (hard_float, TARGET_HARD_FLOAT)
+AVAIL (hard_float, TARGET_HARD_FLOAT || TARGET_ZFINX)
 
 /* PULP builtins CHECKs */
 AVAIL (pulp_bitop_small, TARGET_PULP_BITOP_SMALL)
@@ -962,7 +962,7 @@ riscv_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 void
 riscv_atomic_assign_expand_fenv (tree *hold, tree *clear, tree *update)
 {
-  if (!TARGET_HARD_FLOAT)
+  if (!(TARGET_HARD_FLOAT || TARGET_ZFINX))
     return;
 
   tree frflags = GET_BUILTIN_DECL (CODE_FOR_riscv_frflags);

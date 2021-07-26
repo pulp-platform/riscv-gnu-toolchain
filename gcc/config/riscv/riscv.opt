@@ -144,9 +144,9 @@ Target Report RejectNegative Joined
 -march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
 lower-case. The following extensions groups are available: xpulpv0, xpulpv1, xpulpv2,
 xpulpv3, xgap8, corev. Alternatively, more fine grained subsets can be selected with:
-xpulphwloop, xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
-xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall,
-xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectcomplex, xpulpvectgap8,
+zfinx (replaces f), zdinx (replaces d), xpulphwloop, xpulppostmod, xpulpindregreg,
+xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi, xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop,
+xpulpbitopsmall, xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectcomplex, xpulpvectgap8,
 xpulpvectall, xpulpclip, xpulpaddsubrn.
 The following extensions are only meant for pulpv0 and pulpv1 for
 compatibility reasons:
@@ -383,6 +383,10 @@ Mask(DOUBLE_FLOAT)
 Mask(RVC)
 
 Mask(RVE)
+
+Mask(ZFINX)
+
+Mask(ZDINX)
 
 mriscv-attribute
 Target Report Var(riscv_emit_attribute_p) Init(-1)
