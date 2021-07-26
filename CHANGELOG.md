@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- gcc, binutils, sim: Add support for zfinx and zdinx (rv32 and rv64). Use
+  `zfinx` (replaces `f`) and `zdinx` (replaces `d`).
+- gcc, binutils: Add basic zfinx/zdinx tests
+
+### Changed
+- sim: Now uses arch attribute from elf do determine supported extension
+
+### Fixed
+- gcc: Fix `__builtin_pulp_ClusterId()` and add test
+- gdb: backported fix for NULL pointer deref when using focus or winheight
+  command (only happens when using a bleeding edge gcc)
+- sim: Fix postmod load/store when using the same register as destination and
+  source.
+
 ## [2.3.0] - 2021-07-19
 
 ### Added
@@ -15,7 +30,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - gcc: Generalize simd md patterns
-- gcc: Map builtins to subextensions
+- gcc: builtins are now available depending on enabled subextensions instead of
+  pulp core version hackery.
 
 ### Fixed
 - gcc: xpulpvect was not working as argument, but xpulpvectall was
