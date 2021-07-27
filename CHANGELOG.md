@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.4.0] - 2021-07-27
+
 ### Added
 - gcc, binutils, sim: Add support for zfinx and zdinx (rv32 and rv64). Use
   `zfinx` (replaces `f`) and `zdinx` (replaces `d`).
 - gcc, binutils: Add basic zfinx/zdinx tests
+- Added zfinx multilibs
 
 ### Changed
 - sim: Now uses arch attribute from elf do determine supported extension
