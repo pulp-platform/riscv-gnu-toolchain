@@ -5350,7 +5350,7 @@ riscv_conditional_register_usage (void)
 	call_used_regs[r] = 1;
     }
 
-  if (!TARGET_HARD_FLOAT || TARGET_ZFINX)
+  if (!TARGET_HARD_FLOAT)
     {
       for (int regno = FP_REG_FIRST; regno <= FP_REG_LAST; regno++)
 	fixed_regs[regno] = call_used_regs[regno] = 1;
