@@ -1402,7 +1402,7 @@
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(fix:GPR
 	    (match_operand:FIXF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
+  ""
   "fcvt.<GPR:ifmt>.<FIXF:fmt> %0,%1,rtz"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "<FIXF:MODE>")])
@@ -1411,7 +1411,7 @@
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(unsigned_fix:GPR
 	    (match_operand:FIXF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX || TARGET_ZDINX"
+  ""
   "fcvt.<GPR:ifmt>u.<FIXF:fmt> %0,%1,rtz"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "<FIXF:MODE>")])
