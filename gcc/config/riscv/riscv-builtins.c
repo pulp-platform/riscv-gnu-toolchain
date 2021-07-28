@@ -634,7 +634,7 @@ riscv_init_builtins (void)
   floatHF_type_node = make_node (REAL_TYPE);
   TYPE_PRECISION (floatHF_type_node) = GET_MODE_PRECISION (HFmode);
   layout_type (floatHF_type_node);
-  if (TARGET_PULP_FHALF)
+  if (TARGET_PULP_FHALF || TARGET_PULP_FHALFINX)
     (*lang_hooks.types.register_builtin_type) (floatHF_type_node, "float16");
   opaque_V2HF_type_node    = build_opaque_vector_type (floatHF_type_node, 2);
 
@@ -647,7 +647,7 @@ riscv_init_builtins (void)
    * we need to override this here.
    */
   SET_TYPE_MODE (floatOHF_type_node, OHFmode);
-  if (TARGET_PULP_FALTHALF)
+  if (TARGET_PULP_FALTHALF || TARGET_PULP_FALTHALFINX)
     (*lang_hooks.types.register_builtin_type) (floatOHF_type_node, "float16alt");
   opaque_V2OHF_type_node    = build_opaque_vector_type (floatOHF_type_node, 2);
 

@@ -443,12 +443,25 @@ riscv_is_supported_pulp_ext (const char *ext)
     "xpulpelw",
 
     "xfhalf",
-    "xfhalfwithf",
-    "xfhalfwithd",
-    "xfvechalf",
+    /* The compiler assumes that the conversion extensions are always available.
+       If there is really someone that wants to use different float formats but
+       withouth conversion instructions then it should not be too add that. */
+    /* "xfhalfwithf", */
+    /* "xfhalfwithd", */
     "xfalthalf",
-    "xfalthalfwithf",
-    "xfalthalfwithd",
+    /* "xfalthalfwithf", */
+    /* "xfalthalfwithd", */
+    /* "xfalthalfwithhalf", */
+
+    "xfhalfinx",
+    /* "xfhalfinxwithfinx", */
+    /* "xfhalfinxwithdinx", */
+    "xfalthalfinx",
+    /* "xfalthalfinxwithfinx", */
+    /* "xfalthalfinxwithdinx", */
+    /* "xfalthalfinxwithhalfinx", */
+
+    "xfvechalf",
     "xfvecalthalf",
     NULL
   };
@@ -608,7 +621,7 @@ riscv_arch_str ()
    dependent mask bits, in case more than one -march string is passed.  */
 
 static void
-riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
+riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 			 location_t loc)
 {
   riscv_subset_list *subset_list;
@@ -649,18 +662,18 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
     *flags |= MASK_ZFINX;
 
   if ((*flags & MASK_HARD_FLOAT) && (*flags & MASK_ZFINX))
-    error_at (loc, "f and zfinx are mutually exclusive extensions");
+    error_at (loc, "`f' and `zfinx' are mutually exclusive extensions");
 
   *flags &= ~MASK_ZDINX;
   if (subset_list->lookup ("zdinx"))
     *flags |= MASK_ZDINX;
 
   if ((*flags & MASK_DOUBLE_FLOAT) && (*flags & MASK_ZDINX))
-    error_at (loc, "d and zdinx are mutually exclusive extensions");
+    error_at (loc, "`d' and `zdinx' are mutually exclusive extensions");
 
   if ((*flags & (MASK_HARD_FLOAT | MASK_DOUBLE_FLOAT))
       && (*flags & (MASK_ZFINX | MASK_ZDINX)))
-    error_at (loc, "f/d and zfinx/zdinx cannot be mixed");
+    error_at (loc, "`f'/`d' and `zfinx'/`zdinx' cannot be mixed");
 
   /* PULP specific extension parsing
      "none"
@@ -770,29 +783,88 @@ riscv_parse_arch_string (const char *isa, int *flags, int *pulp_flags,
   if (subset_list->lookup("xpulpelw"))
     *pulp_flags |= OPTION_MASK_PULP_ELW;
 
+  /* float options */
+
   *pulp_flags &= ~OPTION_MASK_PULP_FHALF;
-  if (subset_list->lookup("xfhalf"))
-    *pulp_flags |= OPTION_MASK_PULP_FHALF;
-
   *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHF;
-  if (subset_list->lookup("xfhalfwithf"))
-    *pulp_flags |= OPTION_MASK_PULP_FHALFWITHF;
-
   *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHD;
-  if (subset_list->lookup("xfhalfwithd"))
-    *pulp_flags |= OPTION_MASK_PULP_FHALFWITHD;
+  if (subset_list->lookup("xfhalf"))
+    {
+      /* Internally, we split "xfhalf" into proper xfhalf and conversion
+	 subsets. This is for users that don't want the conversion instructions
+	 (though that is really not recommended). */
+      *pulp_flags |= OPTION_MASK_PULP_FHALF;
+      if (TARGET_HARD_FLOAT)
+	*pulp_flags |= OPTION_MASK_PULP_FHALFWITHF;
+      if (TARGET_DOUBLE_FLOAT)
+	*pulp_flags |= OPTION_MASK_PULP_FHALFWITHD;
+      if (!TARGET_HARD_FLOAT)
+	error_at (loc, "`xfhalf' requires `f' extension");
+    }
+
 
   *pulp_flags &= ~OPTION_MASK_PULP_FALTHALF;
-  if (subset_list->lookup("xfalthalf"))
-    *pulp_flags |= OPTION_MASK_PULP_FALTHALF;
-
   *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHF;
-  if (subset_list->lookup("xfalthalfwithf"))
-    *pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHF;
-
   *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHD;
-  if (subset_list->lookup("xfalthalfwithd"))
-    *pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHD;
+  if (subset_list->lookup("xfalthalf"))
+    {
+      *pulp_flags |= OPTION_MASK_PULP_FALTHALF;
+      if (TARGET_HARD_FLOAT)
+	*pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHF;
+      if (TARGET_DOUBLE_FLOAT)
+	*pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHD;
+      if (!TARGET_HARD_FLOAT)
+	error_at (loc, "`xfalthalf' requires `f' extension");
+    }
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHHALF;
+  if (subset_list->lookup("xfhalf") && subset_list->lookup("xfalthalf"))
+    *pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHHALF;
+
+  /* float in x options */
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALFINX;
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHFINX;
+  *pulp_flags &= ~OPTION_MASK_PULP_FHALFWITHDINX;
+  if (subset_list->lookup("xfhalfinx"))
+    {
+      /* Internally, we split "xfhalfinx" into proper xfhalfinx and conversion
+	 subsets. This is for users that don't want the conversion instructions
+	 (though that is really not recommended). */
+      *pulp_flags |= OPTION_MASK_PULP_FHALFINX;
+      if (TARGET_ZFINX)
+	*pulp_flags |= OPTION_MASK_PULP_FHALFWITHFINX;
+      if (TARGET_ZDINX)
+	*pulp_flags |= OPTION_MASK_PULP_FHALFWITHDINX;
+      if (!TARGET_ZFINX)
+	error_at (loc, "`xfhalfinx' requires `zfinx' extension");
+    }
+
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFINX;
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHFINX;
+  *pulp_flags &= ~OPTION_MASK_PULP_FALTHALFWITHDINX;
+  if (subset_list->lookup("xfhalfinx"))
+    {
+      /* Internally, we split "xfhalfinx" into proper xfhalfinx and conversion
+	 subsets. This is for users that don't want the conversion instructions
+	 (though that is really not recommended). */
+      *pulp_flags |= OPTION_MASK_PULP_FALTHALFINX;
+      if (TARGET_ZFINX)
+	*pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHFINX;
+      if (TARGET_ZDINX)
+	*pulp_flags |= OPTION_MASK_PULP_FALTHALFWITHDINX;
+      if (!TARGET_ZFINX)
+	error_at (loc, "`xfalthalfinx' requires `zfinx' extension");
+    }
+
+  /* cannot mix xfhalf/xfalthalf/f/d and xfhalfinx/xfalthalfinx/finx/dinx */
+  if ((*flags & (MASK_HARD_FLOAT | MASK_DOUBLE_FLOAT)
+       || *pulp_flags & (OPTION_MASK_PULP_FHALF | OPTION_MASK_PULP_FALTHALF))
+      && (*flags & (MASK_ZFINX | MASK_ZDINX)
+  	|| *pulp_flags
+  	     & (OPTION_MASK_PULP_FHALFINX | OPTION_MASK_PULP_FALTHALFINX)))
+    error_at (loc, "`f'/`d'/`xfhalf'/`xfalthalf' and `zfinx'/`zdinx'/`xfhalfinx'/`xfalthalfinx' cannot be mixed");
+
 
   /* groupings using the above listed subsets */
 #define PULP_EXT_GROUP_SMALL (OPTION_MASK_PULP_POSTMOD		\

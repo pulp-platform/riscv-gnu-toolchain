@@ -375,13 +375,13 @@
 ;; Iterator for hardware-supported floating-point modes.
 (define_mode_iterator ANYF [(SF "TARGET_HARD_FLOAT || TARGET_ZFINX")
 			    (DF "TARGET_DOUBLE_FLOAT || TARGET_ZDINX")
-			    (HF "TARGET_PULP_FHALF")
-			    (OHF "TARGET_PULP_FALTHALF")])
+			    (HF "TARGET_PULP_FHALF || TARGET_PULP_FHALFINX")
+			    (OHF "TARGET_PULP_FALTHALF || TARGET_PULP_FALTHALFINX")])
 
 ;; Iterator for hardware-supported floating point to integer conversions
 (define_mode_iterator FIXF [(SF "TARGET_HARD_FLOAT || TARGET_ZFINX")
 			    (DF "TARGET_DOUBLE_FLOAT || TARGET_ZDINX")
-			    (HF "TARGET_PULP_FHALF")])
+			    (HF "TARGET_PULP_FHALF || TARGET_PULP_FHALFINX")])
 
 ;; Iterator for floating-point modes that can be loaded into X registers.
 (define_mode_iterator SOFTF [SF (DF "TARGET_64BIT")])
@@ -1188,7 +1188,8 @@
   [(set (match_operand:HF 0 "register_operand" "=f")
 	(float_truncate:HF
 	    (match_operand:DF 1 "register_operand" "f")))]
-  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD"
+  "(TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD)
+   || (TARGET_ZDINX && TARGET_PULP_FHALFWITHDINX)"
   "fcvt.h.d\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "HF")])
@@ -1197,7 +1198,8 @@
   [(set (match_operand:HF 0 "register_operand" "=f")
 	(float_truncate:HF
 	    (match_operand:SF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF)
+   || (TARGET_ZFINX && TARGET_PULP_FHALFWITHFINX)"
   "fcvt.h.s\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "HF")])
@@ -1206,7 +1208,8 @@
   [(set (match_operand:OHF 0 "register_operand" "=f")
 	(float_truncate:OHF
 	    (match_operand:DF 1 "register_operand" "f")))]
-  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD"
+  "(TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD)
+   || (TARGET_ZDINX && TARGET_PULP_FALTHALFWITHDINX)"
   "fcvt.ah.d\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "OHF")])
@@ -1215,7 +1218,8 @@
   [(set (match_operand:OHF 0 "register_operand" "=f")
 	(float_truncate:OHF
 	    (match_operand:SF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF)
+   || (TARGET_ZFINX && TARGET_PULP_FALTHALFWITHFINX)"
   "fcvt.ah.s\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "OHF")])
@@ -1337,7 +1341,8 @@
   [(set (match_operand:SF 0 "register_operand" "=f")
 	(float_extend:SF
 	    (match_operand:HF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FHALFWITHF)
+   || (TARGET_ZFINX && TARGET_PULP_FHALFWITHFINX)"
   "fcvt.s.h\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "SF")])
@@ -1346,16 +1351,39 @@
   [(set (match_operand:SF 0 "register_operand" "=f")
 	(float_extend:SF
 	    (match_operand:OHF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FALTHALFWITHF)
+   || (TARGET_ZFINX && TARGET_PULP_FALTHALFWITHFINX)"
   "fcvt.s.ah\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "SF")])
 
-(define_insn "extendhfdf2"
+;; HFmode to DFmode conversions where we don't have the instruction for it (e.g.
+;; in rv32) must go through SFmode. This is safe for extend.
+
+(define_expand "extendhfdf2"
   [(set (match_operand:DF 0 "register_operand" "=f")
 	(float_extend:DF
 	    (match_operand:HF 1 "register_operand" "f")))]
-  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD"
+  "TARGET_PULP_FHALF || TARGET_PULP_FHALFINX"
+{
+  if ((TARGET_PULP_FHALF && !TARGET_PULP_FHALFWITHD)
+      || (TARGET_PULP_FHALFINX && !TARGET_PULP_FHALFWITHDINX))
+    {
+      rtx op1;
+      op1 = convert_to_mode (SFmode, operands[1], 0);
+      op1 = convert_to_mode (DFmode, op1, 0);
+      emit_insn (gen_movdf (operands[0], op1));
+      DONE;
+    }
+    /* otherwise we can let the standard pattern take over */
+})
+
+(define_insn "*extendhfdf2"
+  [(set (match_operand:DF 0 "register_operand" "=f")
+	(float_extend:DF
+	    (match_operand:HF 1 "register_operand" "f")))]
+  "(TARGET_DOUBLE_FLOAT && TARGET_PULP_FHALFWITHD)
+   || (TARGET_ZDINX && TARGET_PULP_FHALFWITHDINX)"
   "fcvt.d.h\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "DF")])
@@ -1364,7 +1392,8 @@
   [(set (match_operand:DF 0 "register_operand" "=f")
 	(float_extend:DF
 	    (match_operand:OHF 1 "register_operand" "f")))]
-  "TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD"
+  "(TARGET_DOUBLE_FLOAT && TARGET_PULP_FALTHALFWITHD)
+   || (TARGET_ZDINX && TARGET_PULP_FALTHALFWITHDINX)"
   "fcvt.d.ah\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "DF")])
@@ -1382,7 +1411,8 @@
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(fix:GPR
 	    (match_operand:OHF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF)
+   || (TARGET_ZFINX && TARGET_PULP_FALTHALFINX)"
   "fcvt.<GPR:ifmt>.ah %0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "OHF")])
@@ -1391,7 +1421,8 @@
   [(set (match_operand:GPR      0 "register_operand" "=r")
 	(unsigned_fix:GPR
 	    (match_operand:OHF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF"
+  "(TARGET_HARD_FLOAT && TARGET_PULP_FALTHALF)
+   || (TARGET_ZFINX && TARGET_PULP_FALTHALFINX)"
   "fcvt.<GPR:ifmt>u.ah %0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "OHF")])
@@ -2884,12 +2915,14 @@
 (define_insn "riscv_frflags"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec_volatile [(const_int 0)] UNSPECV_FRFLAGS))]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+  "TARGET_HARD_FLOAT || TARGET_ZFINX
+  || TARGET_PULP_FHALFINX || TARGET_PULP_FALTHALFINX"
   "frflags\t%0")
 
 (define_insn "riscv_fsflags"
   [(unspec_volatile [(match_operand:SI 0 "csr_operand" "rK")] UNSPECV_FSFLAGS)]
-  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+  "TARGET_HARD_FLOAT || TARGET_ZFINX
+  || TARGET_PULP_FHALFINX || TARGET_PULP_FALTHALFINX"
   "fsflags\t%0")
 
 (define_insn "riscv_mret"

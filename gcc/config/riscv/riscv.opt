@@ -24,6 +24,8 @@
 HeaderInclude
 config/riscv/riscv-opts.h
 
+Variable
+HOST_WIDE_INT pulp_target_flags = 0
 
 Enum
 Name(Pulp_Chip_Config_Type) Type(enum Pulp_Chip_Config_Type)
@@ -141,16 +143,16 @@ Use hardware instructions for integer division.
 
 march=
 Target Report RejectNegative Joined
--march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
-lower-case. The following extensions groups are available: xpulpv0, xpulpv1, xpulpv2,
-xpulpv3, xgap8, corev. Alternatively, more fine grained subsets can be selected with:
-zfinx (replaces f), zdinx (replaces d), xpulphwloop, xpulppostmod, xpulpindregreg,
-xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi, xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop,
-xpulpbitopsmall, xpulpslet, xpulpvect, xpulpvectshufflepack, xpulpvectcomplex, xpulpvectgap8,
-xpulpvectall, xpulpclip, xpulpaddsubrn.
-The following extensions are only meant for pulpv0 and pulpv1 for
-compatibility reasons:
-xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
+-march=	Generate code for given RISC-V ISA (e.g. RV64IM). ISA strings must be
+lower-case. The following extensions groups are available: xpulpv0, xpulpv1,
+xpulpv2, xpulpv3, xgap8, corev. Alternatively, more fine grained subsets can be
+selected with: zfinx (replaces f), zdinx (replaces d), xfhalf, xfalthalf,
+xfhalfinx (replaces xfhalf), xfalthalfinx (replaces xfalthalf), xpulphwloop,
+xpulppostmod, xpulpindregreg, xpulpmacsi, xpulpmacrnhi, xpulpmulrnhi,
+xpulppartmac, xpulpminmax, xpulpabs, xpulpbitop, xpulpbitopsmall, xpulpslet,
+xpulpvect, xpulpvectshufflepack, xpulpvectcomplex, xpulpvectgap8, xpulpvectall,
+xpulpclip, xpulpaddsubrn. The following extensions are only meant for pulpv0 and
+pulpv1 for compatibility reasons: xpulppostmodv0, xpulpminmaxv0, xpulpabsv0
 
 mtune=
 Target RejectNegative Joined Var(riscv_tune_string)
@@ -292,9 +294,6 @@ Use PULP bitreverse instruction
 mpulp-fhalf
 Target Mask(PULP_FHALF) Var(pulp_target_flags) Undocumented
 
-mpulp-fvechalf
-Target Mask(PULP_FVECHALF) Var(pulp_target_flags) Undocumented
-
 mpulp-fhalfwithf
 Target Mask(PULP_FHALFWITHF) Var(pulp_target_flags) Undocumented
 
@@ -304,14 +303,41 @@ Target Mask(PULP_FHALFWITHD) Var(pulp_target_flags) Undocumented
 mpulp-falthalf
 Target Mask(PULP_FALTHALF) Var(pulp_target_flags) Undocumented
 
-mpulp-fvecalthalf
-Target Mask(PULP_FVECALTHALF) Var(pulp_target_flags) Undocumented
-
 mpulp-falthalfwithf
 Target Mask(PULP_FALTHALFWITHF) Var(pulp_target_flags) Undocumented
 
 mpulp-falthalfwithd
 Target Mask(PULP_FALTHALFWITHD) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfwithhalf
+Target Mask(PULP_FALTHALFWITHHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-fhalfinx
+Target Mask(PULP_FHALFINX) Var(pulp_target_flags) Undocumented
+
+mpulp-fhalfinxwithfinx
+Target Mask(PULP_FHALFWITHFINX) Var(pulp_target_flags) Undocumented
+
+mpulp-fhalfinxwithdinx
+Target Mask(PULP_FHALFWITHDINX) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfinx
+Target Mask(PULP_FALTHALFINX) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfinxwithfinx
+Target Mask(PULP_FALTHALFWITHFINX) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfinxwithdinx
+Target Mask(PULP_FALTHALFWITHDINX) Var(pulp_target_flags) Undocumented
+
+mpulp-falthalfinxwithhalfinx
+Target Mask(PULP_FALTHALFWITHHALFINX) Var(pulp_target_flags) Undocumented
+
+mpulp-fvechalf
+Target Mask(PULP_FVECHALF) Var(pulp_target_flags) Undocumented
+
+mpulp-fvecalthalf
+Target Mask(PULP_FVECALTHALF) Var(pulp_target_flags) Undocumented
 
 mpulp-compat
 Target Mask(PULP_COMPAT) Var(pulp_target_flags)
