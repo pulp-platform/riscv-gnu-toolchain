@@ -6554,6 +6554,18 @@ static void riscv_file_end (void)
 
 }
 
+/* Implement TARGET_MANGLE_TYPE. Used for PULP half float. */
+
+static const char *
+riscv_mangle_type (const_tree type)
+{
+  /* Half-precision float.  */
+  if (TREE_CODE (type) == REAL_TYPE && TYPE_PRECISION (type) == 16)
+    return "Dh";
+
+  /* Use the default mangling.  */
+  return NULL;
+}
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
@@ -6695,6 +6707,9 @@ static void riscv_file_end (void)
 
 #undef TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN riscv_expand_builtin
+
+#undef TARGET_MANGLE_TYPE
+#define TARGET_MANGLE_TYPE riscv_mangle_type
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS riscv_hard_regno_nregs
