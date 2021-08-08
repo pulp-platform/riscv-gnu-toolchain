@@ -92,6 +92,7 @@ Using `make check` from gcc
 
 ```
 make check-gcc RUNTESTFLAGS="execute.exp=scal-to-vec1* --target_board=riscv-sim"
+make check-gcc RUNTESTFLAGS="riscv.exp=pulp*  -target_board='riscv-sim'"
 ```
 
 or manually
