@@ -298,6 +298,10 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 
       gcc_assert ((GET_MODE_PRECISION (from_mode)
 		   != GET_MODE_PRECISION (to_mode))
+		  /* relax same precision conversion for
+		     float16 <-> float16alt */
+		  || (from_mode == OHFmode && to_mode == HFmode)
+		  || (from_mode == HFmode && to_mode == OHFmode)
 		  || (DECIMAL_FLOAT_MODE_P (from_mode)
 		      != DECIMAL_FLOAT_MODE_P (to_mode)));
 

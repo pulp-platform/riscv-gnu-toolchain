@@ -122,7 +122,7 @@ CONV (unsigned long, float16alt, ohftoundi, unditoohf);
 
 
 /* fp16 / fp16 alt conversion */
-/*
+
 float16 hftoohf (float16alt a)
 {
   return a;
@@ -132,7 +132,6 @@ float16alt ftoohf (float16 a)
 {
   return a;
 }
-*/
 
 int
 main (void)
