@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32imfdc_xfhalf_xfhalfwithf_xfhalfwithd_xfalthalf_xfalthalfwithf" } */
+/* { dg-options "-march=rv32imfdc_xfhalf_xfalthalf" } */
 
 
 #define CONV(TYPE, BASETYPE, BACK, FORTH)	\
