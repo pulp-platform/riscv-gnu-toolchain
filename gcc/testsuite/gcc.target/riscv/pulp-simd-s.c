@@ -1,5 +1,6 @@
 /* { dg-do run } */
 /* { dg-options "-std=c11 -Os -march=rv32imc_xpulpvect_xpulpvectshufflepack -mabi=ilp32" } */
+/* { dg-require-effective-target riscv_float_abi_soft } */
 
 #include <stdlib.h>
 #include <stdio.h>
