@@ -9380,3 +9380,25 @@ proc check_effective_target_mfentry { } {
 	        void foo (void) { }
     } "-mfentry"]
 }
+
+# Return 1 if this is an RISC-V target that supports the hard float ABI
+
+proc check_effective_target_riscv_float_abi_single { } {
+    return [check_no_compiler_messages riscv_float_abi_single assembly {
+	#ifndef __riscv_float_abi_single
+	#error not ABI ilp32f
+	#endif
+	int i;
+    }]
+}
+
+# Return 1 if this is an RISC-V target that supports the integer ABI
+
+proc check_effective_target_riscv_float_abi_soft { } {
+    return [check_no_compiler_messages riscv_float_abi_soft assembly {
+	#ifndef __riscv_float_abi_soft
+	#error not ABI ilp32
+	#endif
+	int i;
+    }]
+}

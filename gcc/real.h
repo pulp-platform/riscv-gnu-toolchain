@@ -361,7 +361,8 @@ extern const struct real_format decimal_double_format;
 extern const struct real_format decimal_quad_format;
 extern const struct real_format ieee_half_format;
 extern const struct real_format arm_half_format;
-
+/* OPRECOMP New floating point types */
+extern const struct real_format riscv_oprecomp_half_format;
 
 /* ====================================================================== */
 /* Crap.  */

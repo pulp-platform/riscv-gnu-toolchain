@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32imcxpulpv3"} */
+/* { dg-options "-march=rv32imc_xpulpv3 -mabi=ilp32" } */
 
 int main(void)
 {

@@ -2098,12 +2098,13 @@ riscv_output_move (rtx dest, rtx src)
 {
   enum rtx_code dest_code, src_code;
   machine_mode mode;
-  bool dbl_p;
+  bool dbl_p, hf_p;
 
   dest_code = GET_CODE (dest);
   src_code = GET_CODE (src);
   mode = GET_MODE (dest);
   dbl_p = (GET_MODE_SIZE (mode) == 8);
+  hf_p = (GET_MODE_SIZE (mode) == 2);
 
   if (dbl_p && riscv_split_64bit_move_p (dest, src))
     return "#";
@@ -2209,15 +2210,15 @@ riscv_output_move (rtx dest, rtx src)
   if (src_code == REG && FP_REG_P (REGNO (src)))
     {
       if (dest_code == REG && FP_REG_P (REGNO (dest)))
-	return dbl_p ? "fmv.d\t%0,%1" : "fmv.s\t%0,%1";
+	return dbl_p ? "fmv.d\t%0,%1" : hf_p ? "fmv.h\t%0,%1" : "fmv.s\t%0,%1";
 
       if (dest_code == MEM)
-	return dbl_p ? "fsd\t%1,%0" : "fsw\t%1,%0";
+	return dbl_p ? "fsd\t%1,%0" : hf_p ? "fsh\t%1,%0" : "fsw\t%1,%0";
     }
   if (dest_code == REG && FP_REG_P (REGNO (dest)))
     {
       if (src_code == MEM)
-	return dbl_p ? "fld\t%0,%1" : "flw\t%0,%1";
+	return dbl_p ? "fld\t%0,%1" : hf_p ? "flh\t%0,%1" : "flw\t%0,%1";
     }
   gcc_unreachable ();
 }
@@ -5253,7 +5254,9 @@ riscv_option_override (void)
     error ("%<-mdiv%> requires %<-march%> to subsume the %<M%> extension");
 
   /* Likewise floating-point division and square root.  */
-  if ((TARGET_HARD_FLOAT || TARGET_ZFINX) && (target_flags_explicit & MASK_FDIV) == 0)
+  if ((TARGET_HARD_FLOAT || TARGET_ZFINX
+       || TARGET_PULP_FHALFINX || TARGET_PULP_FALTHALFINX)
+      && (target_flags_explicit & MASK_FDIV) == 0)
     target_flags |= MASK_FDIV;
 
   /* Handle -mtune.  */
@@ -5301,6 +5304,12 @@ riscv_option_override (void)
   /* Zfinx only supports floating-point arguments in X-registers. */
   if (TARGET_ZFINX && riscv_abi != ABI_ILP32 && riscv_abi != ABI_LP64 && riscv_abi != ABI_ILP32E)
     error ("z*inx requires ilp32e, ilp32 or lp64 ABI");
+
+  /* fhalfinx/falthalfinx only supports floating-point arguments in
+     X-registers. */
+  if ((TARGET_PULP_FHALFINX || TARGET_PULP_FALTHALFINX)
+      && riscv_abi != ABI_ILP32 && riscv_abi != ABI_LP64 && riscv_abi != ABI_ILP32E)
+    error ("fhalfinx/falthalfinx requires ilp32e, ilp32 or lp64 ABI");
 
   /* We do not yet support ILP32 on RV64.  */
   if (BITS_PER_WORD != POINTER_SIZE)
@@ -6545,6 +6554,18 @@ static void riscv_file_end (void)
 
 }
 
+/* Implement TARGET_MANGLE_TYPE. Used for PULP half float. */
+
+static const char *
+riscv_mangle_type (const_tree type)
+{
+  /* Half-precision float.  */
+  if (TREE_CODE (type) == REAL_TYPE && TYPE_PRECISION (type) == 16)
+    return "Dh";
+
+  /* Use the default mangling.  */
+  return NULL;
+}
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
@@ -6686,6 +6707,9 @@ static void riscv_file_end (void)
 
 #undef TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN riscv_expand_builtin
+
+#undef TARGET_MANGLE_TYPE
+#define TARGET_MANGLE_TYPE riscv_mangle_type
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS riscv_hard_regno_nregs
