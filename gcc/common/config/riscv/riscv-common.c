@@ -1042,6 +1042,13 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
     {
       *pulp_flags &= ~COREV_EXT_GROUP;
       *pulp_flags |= COREV_EXT_GROUP;
+
+      /* TODO: hardware loop code generation is busted, so we forbid it. Check:
+       https://iis-git.ee.ethz.ch/gnu/riscv-gnu-toolchain/-/issues/14 The
+       biggest problem is that we insert compressed instructions into the loop
+       body atm. */
+      *pulp_flags &= ~OPTION_MASK_PULP_HWLOOP;
+
       /* TODO: we should remove the whole Pulp_Cpu thing anyway, but for now we
 	 pretend to be pulpv3 for the builtins. */
       Pulp_Cpu = PULP_V3;
