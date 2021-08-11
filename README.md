@@ -4,6 +4,8 @@ PULP RISC-V GNU Compiler Toolchain
 
 This is the PULP RISC-V C and C++ cross-compiler a generic ELF/Newlib toolchain.
 
+[[_TOC_]]
+
 ###  Getting the sources
 
 This repository uses submodules. You need the --recursive option to fetch the submodules automatically
@@ -100,8 +102,8 @@ To test GCC, run the following commands:
 
 ### Supported PULP Extensions
 
-Read `pulp.md` for information about the supported PULP extensions. Read
-`core-v.rst` to see how these extension can be used with the cv32e40p.
+Read [pulp.md](./pulp.md) for information about the supported PULP extensions. Read
+[core-v.rst](./core-v.rst) to see how these extension can be used with the cv32e40p.
 
 
 Check `riscv32-unknown-elf-gcc --target=help` for supported options in the compiler,
