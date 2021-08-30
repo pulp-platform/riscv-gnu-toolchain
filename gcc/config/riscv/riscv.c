@@ -62,6 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgrtl.h"
 #include "cfghooks.h"
 #include "cfg.h"
+#include "cfgloop.h"
 
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
@@ -1972,6 +1973,7 @@ riscv_address_cost (rtx addr, machine_mode mode,
 		    addr_space_t as ATTRIBUTE_UNUSED,
 		    bool speed ATTRIBUTE_UNUSED)
 {
+#if 0
   struct riscv_address_info addr_info;
   int n = 1;
 
@@ -1999,6 +2001,8 @@ riscv_address_cost (rtx addr, machine_mode mode,
     return n;
   }
   return 0;
+#endif
+  return riscv_address_insns (addr, mode, false);
 }
 
 /* Return one word of double-word value OP.  HIGH_P is true to select the
@@ -5781,6 +5785,25 @@ riscv_can_use_doloop_p (const widest_int &, const widest_int &,
         return (entered_at_top && (loop_depth <= 2));
 }
 
+/* Predict whether the given loop in gimple will be transformed in the RTL
+   doloop_optimize pass.  */
+
+static bool
+riscv_predict_doloop_p (struct loop *loop)
+{
+  gcc_assert (loop);
+
+  if (!TARGET_PULP_HWLOOP) return 0;
+
+  struct niter_desc *desc;
+
+  /* Find the simple exit of a LOOP.  */
+  //desc = get_simple_loop_desc (loop);
+  return (/*loop->latch == desc->in_edge->dest
+                    && contains_no_active_insn_p (loop->latch)
+                    && */(get_loop_level(loop) < 2));
+}
+
 
 void riscv_hardware_loop (void)
 {
@@ -6755,6 +6778,19 @@ riscv_mangle_type (const_tree type)
 
 #undef  TARGET_CAN_USE_DOLOOP_P
 #define TARGET_CAN_USE_DOLOOP_P riscv_can_use_doloop_p
+
+#undef TARGET_PREDICT_DOLOOP_P
+#define TARGET_PREDICT_DOLOOP_P riscv_predict_doloop_p
+
+#undef TARGET_HAVE_COUNT_REG_DECR_P
+#define TARGET_HAVE_COUNT_REG_DECR_P true
+
+/* 1000000000 is infinite cost in IVOPTs.  */
+#undef TARGET_DOLOOP_COST_FOR_GENERIC
+#define TARGET_DOLOOP_COST_FOR_GENERIC 1000000000
+
+#undef TARGET_DOLOOP_COST_FOR_ADDRESS
+#define TARGET_DOLOOP_COST_FOR_ADDRESS 1000000000
 
 #undef TARGET_INVALID_WITHIN_DOLOOP
 #define TARGET_INVALID_WITHIN_DOLOOP riscv_invalid_within_doloop

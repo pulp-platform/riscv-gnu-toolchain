@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-std=c11 -Os -march=rv32imc_xpulphwloop -mabi=ilp32" } */
+/* { dg-options "-std=c11 -O3 -fno-tree-loop-distribute-patterns -march=rv32imc_xpulphwloop -mabi=ilp32" } */
 #include <stdlib.h>
 
 #define M 50
@@ -41,5 +41,4 @@ main (void)
   exit (0);
 }
 
-/* { dg-final { scan-assembler "lp.setup" } } */
-/* TODO: this test is not finished. Nested hwloops don't work */
+/* { dg-final { scan-assembler-times "lp.setup" 5} } */
