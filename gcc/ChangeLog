@@ -1,3 +1,97 @@
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+
+	Backport from mainline
+        2020-04-09  Bin Cheng  <bin.cheng@linux.alibaba.com>
+		    Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/93674
+	* tree-ssa-loop-ivopts.c (langhooks.h): New include.
+	(add_iv_candidate_for_use): For iv_use of non integer or pointer type,
+	or non-mode precision type, add candidate in unsigned type with the
+	same precision.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+
+	Backport from mainline
+        2020-01-31  Andrew Stubbs  <ams@codesourcery.com>
+
+	* tree-ssa-loop-ivopts.c (get_iv): Use sizetype for zero-step.
+	(find_inv_vars_cb): Likewise.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+
+	Backport from mainline
+        2019-09-14  Kewen Lin  <linkw@gcc.gnu.org>
+
+	PR middle-end/80791
+	* config/rs6000/rs6000.c (TARGET_HAVE_COUNT_REG_DECR_P): New macro.
+	(TARGET_DOLOOP_COST_FOR_GENERIC): Likewise.
+	(TARGET_DOLOOP_COST_FOR_ADDRESS): Likewise.
+	* target.def (have_count_reg_decr_p): New hook.
+	(doloop_cost_for_generic): Likewise.
+	(doloop_cost_for_address): Likewise.
+	* doc/tm.texi.in (TARGET_HAVE_COUNT_REG_DECR_P): Likewise.
+	(TARGET_DOLOOP_COST_FOR_GENERIC): Likewise.
+	(TARGET_DOLOOP_COST_FOR_ADDRESS): Likewise.
+	* doc/tm.texi: Regenerate.
+	* tree-ssa-loop-ivopts.c (comp_cost::operator+=): Consider infinite cost
+	addend.
+	(record_group): Init doloop_p.
+	(add_candidate_1): Add optional argument doloop, change the handlings
+	accordingly.
+	(add_candidate): Likewise.
+	(generic_predict_doloop_p): Update attribute.
+	(force_expr_to_var_cost): Add costing for expressions COND_EXPR/LT_EXPR/
+	LE_EXPR/GT_EXPR/GE_EXPR/EQ_EXPR/NE_EXPR/UNORDERED_EXPR/ORDERED_EXPR/
+	UNLT_EXPR/UNLE_EXPR/UNGT_EXPR/UNGE_EXPR/UNEQ_EXPR/LTGT_EXPR/MAX_EXPR/
+	MIN_EXPR.
+	(get_computation_cost): Update for doloop IV cand extra cost.
+	(determine_group_iv_cost_cond): Update for doloop IV cand.
+	(determine_iv_cost): Likewise.
+	(ivopts_estimate_reg_pressure): Likewise.
+	(may_eliminate_iv): Update handlings for doloop IV cand.
+	(add_iv_candidate_for_doloop): New function.
+	(find_iv_candidates): Call function add_iv_candidate_for_doloop.
+	(iv_ca_set_no_cp): Update for doloop IV cand.
+	(iv_ca_set_cp): Likewise.
+	(iv_ca_dump): Dump register cost.
+	(find_doloop_use): New function.
+	(analyze_and_mark_doloop_use): Likewise.
+	(tree_ssa_iv_optimize_loop): Call function analyze_and_mark_doloop_use.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+
+        Backport from mainline
+        2019-05-08  Bin Cheng  <bin.cheng@linux.alibaba.com>
+
+	PR tree-optimization/90078
+	* tree-ssa-loop-ivopts.c (inttypes.h): Include new header file.
+	(INFTY): Increase the value for infinite cost.
+	(struct comp_cost): Promote type of members to int64_t.
+	(infinite_cost): Don't set complexity in initialization.
+	(comp_cost::operator +,-,+=,-+,/=,*=): Assert when cost computation
+	overflows to infinite_cost.
+	(adjust_setup_cost): Promote type of parameter and cost computation
+	to int64_t.
+	(struct ainc_cost_data, struct iv_ca): Promote type of member to
+	int64_t.
+	(get_scaled_computation_cost_at, determine_iv_cost): Promote type of
+	cost computation to int64_t.
+	(determine_group_iv_costs, iv_ca_dump, find_optimal_iv_set): Use
+	int64_t's format specifier in dump.
+
+2019-05-08  Bin Cheng  <bin.cheng@linux.alibaba.com>
+
+	PR tree-optimization/90240
+	* tree-ssa-loop-ivopts.c (get_scaled_computation_cost_at): Scale cost
+	with respect to scaling factor pre-computed for each basic block.
+	(try_improve_iv_set): Return bool if best_cost equals to iv_ca cost.
+	(find_optimal_iv_set_1): Free iv_ca set if it has infinite_cost.
+	(COST_SCALING_FACTOR_BOUND, determine_scaling_factor): New.
+	(tree_ssa_iv_optimize_loop): Call determine_scaling_factor.  Extend
+	live range for array of loop's basic blocks.  Cleanup aux field of
+	loop's basic blocks.
+
 2020-01-30  Kito Cheng  <kito.cheng@sifive.com>
 
 	Backport from mainline

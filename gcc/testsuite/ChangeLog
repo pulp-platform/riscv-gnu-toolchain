@@ -1,5 +1,31 @@
-2020-01-30  Kito Cheng  <kito.cheng@sifive.com>
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+	Backport from mainline
+	2020-04-09  Bin Cheng  <bin.cheng@linux.alibaba.com>
 
+	PR tree-optimization/93674
+	* g++.dg/pr93674.C: New test.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+	Backport from mainline
+        2019-09-14  Kewen Lin  <linkw@gcc.gnu.org>
+	PR middle-end/80791
+	* gcc.dg/tree-ssa/ivopts-3.c: Adjust for doloop change.
+	* gcc.dg/tree-ssa/ivopts-lt.c: Likewise.
+	* gcc.dg/tree-ssa/pr32044.c: Likewise.
+
+2021-10-05  Robert Balas  <balasr@iis.ee.ethz.ch>
+	Backport from mainline
+        2018-05-08  Bin Cheng  <bin.cheng@linux.alibaba.com>
+
+	PR tree-optimization/90078
+	* g++.dg/tree-ssa/pr90078.C: New test.
+
+2018-05-08  Bin Cheng  <bin.cheng@linux.alibaba.com>
+
+	PR tree-optimization/90240
+	* gfortran.dg/graphite/pr90240.f: New test.
+
+2020-01-30  Kito Cheng  <kito.cheng@sifive.com>
 	Backport from mainline
 	2020-01-21  Kito Cheng  <kito.cheng@sifive.com>
 
