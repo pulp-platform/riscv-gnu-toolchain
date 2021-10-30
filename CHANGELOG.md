@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - gcc: Various typos in tests
 - gcc: Hardware loops for the `xcorev` target are now disabled (due to wrong
   code generation)
+- gcc: Nested looping code now properly results in nested hardware loop
+  instructions
 
 ## [2.4.0] - 2021-07-27
 
