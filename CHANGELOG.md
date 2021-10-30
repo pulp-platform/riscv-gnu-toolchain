@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.5.0] - 2021-10-30
 ### Added
 - gcc: Add `xfhalf`, `xfalthalf`, `xfhalfinx` and `xfhalthalfinx` support. This
   means code generation in the backend, libgcc changes to make softfloat
