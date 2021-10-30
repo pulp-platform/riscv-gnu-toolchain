@@ -88,9 +88,16 @@ make check RUNTEST=$HOME/tmp/pulp-new-gcc/bin/runtest RUNTESTFLAGS="--target_boa
 ```
 
 ### gcc
-Using `make check` from gcc
+Using `make check` from `build-gcc-newlib-stage2/`
 
 ```
+# make sure that you have a site.exp file that defines 'target_triplet', 'src_dir' etc.
+# if it doesn't exist, you can just run
+make report-gcc
+# which will generate these files for you
+# then make sure that DEJAGNULIBS points to the local dejagnu installation
+DEJAGNULIBS=$HOME/tmp/pulp-new-gcc/share/dejagnu
+# and finally run the tests with
 make check-gcc RUNTESTFLAGS="execute.exp=scal-to-vec1* --target_board=riscv-sim"
 make check-gcc RUNTESTFLAGS="riscv.exp=pulp*  -target_board='riscv-sim'"
 ```
