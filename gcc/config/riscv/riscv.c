@@ -354,7 +354,7 @@ static const struct attribute_spec riscv_attribute_table[] =
     riscv_handle_type_attribute, NULL },
 
   /* TODO: add PULP attributes */
-  /* { "tiny",           0, 0, true,  false, false, NULL, true  }, */
+  { "tiny", 0, 0, true, false, false, false, NULL, NULL },
   /* The last attribute spec is set to be NULL.  */
   { NULL,	0,  0, false, false, false, false, NULL, NULL }
 };
