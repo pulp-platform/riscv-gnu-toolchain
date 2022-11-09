@@ -918,11 +918,6 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 	  warning_at(loc, 0, "%<-march=%s%>: pulpv0 is not supported well "
 		     "anymore.", isa);
 
-	  if (*flags & MASK_MUL)
-	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
-		       "is enabled with pulpv0. This was originally not "
-		       "allowed", isa);
-
 	  *pulp_flags &= ~PULP_EXT_GROUP_V0;
 
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V0)
@@ -940,12 +935,6 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 	  warning_at(loc, 0, "%<-march=%s%>: pulpv1 is not supported well "
 		     "anymore.", isa);
 
-	  if (*flags & MASK_MUL)
-	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
-		       "is enabled with pulpv1. This was originally not "
-		       "allowed", isa);
-
-
 	  *pulp_flags &= ~PULP_EXT_GROUP_V1;
 
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V1)
@@ -961,13 +950,7 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 	}
       else if (subset_list->lookup("xpulpv", 2, 0))
 	{
-	  /* we remove this mul blocking hack and turn it into a warning */
-	  /* *flags &= ~MASK_MUL; */
-	  if (*flags & MASK_MUL)
-	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
-		       "is enabled with pulpv2. This was originally not "
-		       "allowed", isa);
-
+	  /* there used to be a hack here to block the mul extension */
 	  *pulp_flags &= ~PULP_EXT_GROUP_V2;
 
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V2)
@@ -983,12 +966,6 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 	}
       else if (subset_list->lookup("xpulpv", 3, 0))
 	{
-	  /* *flags |= MASK_MUL; */
-	  if (!(*flags & MASK_MUL))
-	    warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
-		       "is not enabled with pulpv3. This was originally not "
-		       "allowed. Make sure you know what you do.", isa);
-
 	  *pulp_flags &= ~PULP_EXT_GROUP_V3;
 
 	  if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_V3)
@@ -1000,7 +977,6 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 	  else
 	    error("-xpulpv3: pulp architecture is already defined as %s",
 		  PulpProcessorImage(Pulp_Cpu));
-	  //printf("balasr: parsed xpulpv3\n");
 	}
       else
 	{
@@ -1015,12 +991,6 @@ riscv_parse_arch_string (const char *isa, int *flags, HOST_WIDE_INT *pulp_flags,
 
   if (subset_list->lookup("xgap", 8, 0))
     {
-      /* *flags |= MASK_MUL; */
-      if (!(*flags & MASK_MUL))
-	warning_at(loc, 0, "%<-march=%s%>: m (multiplication) extension "
-		   "is not enabled with gap8. This was originally not "
-		   "allowed. Make sure you know what you do.", isa);
-
       *pulp_flags &= ~PULP_EXT_GROUP_GAP8;
 
       if (Pulp_Cpu == PULP_NONE || Pulp_Cpu == PULP_GAP8)
