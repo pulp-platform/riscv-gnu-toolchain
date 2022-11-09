@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.6.0] - 2022-11-09
+### Added
+- Re-added .tiny section support
+
+### Fixed
+- Removed backwards compatibility warnings when using xpulpv2 and mul extensions
+
 ## [2.5.0] - 2021-10-30
 ### Added
 - gcc: Add `xfhalf`, `xfalthalf`, `xfhalfinx` and `xfhalthalfinx` support. This
