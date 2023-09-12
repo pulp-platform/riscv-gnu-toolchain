@@ -516,7 +516,7 @@ stamps/build-newlib-nano: $(NEWLIB_SRCDIR) stamps/build-gcc-newlib-stage1
 stamps/merge-newlib-nano: stamps/build-newlib-nano stamps/build-newlib
 # Copy nano library files into newlib install dir.
 	set -e; \
-        for ml in `$(INSTALL_DIR)/bin/$(NEWLIB_TUPLE)-gcc --print-multi-lib`; \
+    for ml in `$(NEWLIB_CC_FOR_TARGET) --print-multi-lib`; \
 	do \
 	    mld=`echo $${ml} | sed -e 's/;.*$$//'`; \
 	    cp $(builddir)/install-newlib-nano/$(NEWLIB_TUPLE)/lib/$${mld}/libc.a \
