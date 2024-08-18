@@ -127,4 +127,4 @@ certain subsets e.g. hardware loops. Do it like this:
 
 * `riscv32-unknown-elf-gcc -march=rv32imfc_xpulpv3 -mno-pulp-hwloop FILES`
 
-Check `riscv32-unknown-elf-gcc --target=help` for more such switches.
+Check `riscv32-unknown-elf-gcc --target-help` for more such switches.
