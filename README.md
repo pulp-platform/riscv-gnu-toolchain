@@ -1,3 +1,9 @@
+| 🧰 Toolchain | 🎯 Target extensions                            | 💻 Target cores | 🔗 Link                                                                                             |
+|--------------|------------------------------------------------|-----------------|-----------------------------------------------------------------------------------------------------|
+| **GCC11**    | **`xpulpv3`**                                  | **CV32E40P**    | **this repo**                                                                                       |
+| GCC7         | `xpulpv2`                                      | RI5CY           | [pulp-platform/pulp-riscv-gnu-toolchain](https://github.com/pulp-platform/pulp-riscv-gnu-toolchain) |
+| LLVM         | `xpulpv2`, `xssr`, `xfrep`, `xdma`, `xmempool` | RI5CY, Snitch   | [pulp-platform/llvm-project](https://github.com/pulp-platform/llvm-project)                         |
+
 PULP RISC-V GNU Compiler Toolchain
 =============================
 [![Build status](https://iis-git.ee.ethz.ch/gnu/riscv-gnu-toolchain/badges/master/pipeline.svg)](https://iis-git.ee.ethz.ch/gnu/riscv-gnu-toolchain/-/commits/master)
